@@ -32,6 +32,7 @@ class Contact:
     note: str = ""
     etag: str = ""
     raw: str = ""  # vCard original, para conservar los campos que la app no edita
+    form: object | None = None  # ContactForm completo (editor); si existe, manda sobre los campos sueltos
 
 
 @dataclass
@@ -64,6 +65,10 @@ def _sync_multi(card, key: str, values: list[str], extra: dict | None = None) ->
 
 def build_vcard(contact: Contact, uid: str) -> str:
     """Genera el texto vCard de `contact`. Si tiene `raw`, parte de él y conserva el resto de campos."""
+    if contact.form is not None:
+        from ccaccess.vcard_form import apply_form
+
+        return apply_form(contact.raw, contact.form, uid)
     if contact.raw:
         card = vobject.readOne(contact.raw)
     else:

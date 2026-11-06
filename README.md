@@ -9,7 +9,7 @@ La idea vino porque uso [DAVx⁵](https://www.davx5.com/) en Android y necesitab
 ## Funciones
 
 - Cuenta con URL, usuario y contraseña. La contraseña se guarda en el llavero del sistema.
-- **Contactos:** lista con búsqueda, detalles, crear, editar y eliminar. Al editar se conservan los campos que la app no muestra (cumpleaños, foto, campos personalizados) y el tipo de cada teléfono.
+- **Contactos:** lista con búsqueda, detalles completos, crear, editar y eliminar. El editor, en tres pestañas, cubre nombre (prefijo, nombre de pila, segundo nombre, apellidos, sufijo, apodo), organización, cargo, función, teléfonos, correos, direcciones, webs, mensajería, cumpleaños, aniversario, categorías y nota. Los campos repetibles se escriben uno por línea, con tipo opcional: `móvil: 600 000 000`, `trabajo: ana@empresa.com`, `casa: Calle 1; Madrid; Madrid; 28001; España`. Lo que la app no muestra (foto, campos personalizados) se conserva al guardar.
 - **Calendario:** agenda agrupada por día (7, 30 o 90 días), con recurrencias expandidas. Crear, editar y eliminar eventos, de hora o de todo el día.
 - Detección de cambios en el servidor: si alguien modificó el elemento mientras lo editabas, la app no sobrescribe y te avisa.
 - Opción **Archivo > Borrar datos guardados** para quitar del equipo la URL, el usuario y la contraseña.

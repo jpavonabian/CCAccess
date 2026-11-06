@@ -35,6 +35,7 @@ La idea vino porque uso [DAVx⁵](https://www.davx5.com/) en Android y necesitab
 | `Ctrl+F` | Ir a la búsqueda de contactos |
 | `Ctrl+L` | Ir a la lista de contactos |
 | `F5` | Actualizar |
+| `F1` | Ver este manual (menú Ayuda) |
 | `Ctrl+Shift+A` | Configurar la cuenta |
 
 Si encuentras algo que no funciona bien con tu lector de pantalla, abre una [incidencia](../../issues) indicando lector, versión y qué anuncia.

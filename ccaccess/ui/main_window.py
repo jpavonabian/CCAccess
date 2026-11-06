@@ -26,6 +26,7 @@ from ccaccess.ui.contact_dialog import ContactDialog
 from ccaccess.ui.dialogs import confirm
 from ccaccess.ui.account_store import Account, clear_account, load_account, save_account
 from ccaccess.ui.announce import announce
+from ccaccess.ui.manual_dialog import ManualDialog
 from ccaccess import __version__, updater
 
 CONTACT_ROLE = 256  # Qt.UserRole
@@ -172,7 +173,10 @@ class MainWindow(QMainWindow):
         about.triggered.connect(
             lambda: QMessageBox.information(self, "CCAccess", f"CCAccess {__version__}")
         )
-        h.addActions([upd, about])
+        manual = QAction("Ver &manual", self)
+        manual.setShortcut(QKeySequence("F1"))
+        manual.triggered.connect(lambda: ManualDialog(self).exec())
+        h.addActions([manual, upd, about])
 
     # --- estado -----------------------------------------------------------
     def say(self, text: str) -> None:

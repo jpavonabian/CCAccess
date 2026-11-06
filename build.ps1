@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-python -m PyInstaller --noconfirm --clean --windowed --name CCAccess `
+python -m PyInstaller --noconfirm --clean --windowed --name CCAccess --add-data "README.md;." `
   --hidden-import keyring.backends.Windows `
   --exclude-module PySide6.QtWebEngineCore --exclude-module PySide6.QtWebEngineWidgets `
   --exclude-module PySide6.QtPdf --exclude-module PySide6.QtQuick --exclude-module PySide6.QtQml `

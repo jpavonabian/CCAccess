@@ -413,11 +413,9 @@ class MainWindow(QMainWindow):
     def _on_contacts(self, contacts: list[Contact]) -> None:
         self.contacts = contacts
         self._refresh_list()
-        self.say(f"{len(contacts)} contactos cargados.")
+        self.say(f"{len(contacts)} contactos cargados." if contacts else "Esta libreta no tiene contactos.")
         if self.list.count():
             self.list.setFocus()
-        else:
-            QMessageBox.information(self, "CCAccess", "Esta libreta no tiene contactos.")
 
     def _refresh_list(self) -> None:
         q = self.search.text().strip().casefold()

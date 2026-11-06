@@ -42,8 +42,9 @@ jobs:
       - name: Probar el ejecutable
         shell: pwsh
         run: |
-          ./dist/CCAccess/CCAccess.exe --selftest
-          if ($LASTEXITCODE -ne 0) { throw "selftest falló" }
+          $p = Start-Process ./dist/CCAccess/CCAccess.exe -ArgumentList "--selftest" -Wait -PassThru -RedirectStandardOutput selftest.txt
+          Get-Content selftest.txt
+          if ($p.ExitCode -ne 0) { throw "selftest falló ($($p.ExitCode))" }
 
       - name: Empaquetar
         shell: pwsh

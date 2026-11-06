@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QHBoxLayout,
     QPlainTextEdit,
-    QPushButton,
     QSplitter,
     QTabWidget,
     QVBoxLayout,
@@ -19,11 +18,11 @@ from PySide6.QtWidgets import (
 )
 
 from ccaccess.caldav_client import CalDavClient, Calendar, caldav_url_from
-from ccaccess.carddav import AddressBook, CardDavClient, Contact, DavError
+from ccaccess.carddav import AddressBook, CardDavClient, Contact, DavError, describe_vcard
 from ccaccess.ui.calendar_tab import CalendarTab
 from ccaccess.ui.account_dialog import AccountDialog
 from ccaccess.ui.contact_dialog import ContactDialog
-from ccaccess.ui.dialogs import confirm
+from ccaccess.ui.dialogs import EnterButton, confirm
 from ccaccess.ui.account_store import Account, clear_account, load_account, save_account
 from ccaccess.ui.announce import announce
 from ccaccess.ui.manual_dialog import ManualDialog
@@ -51,8 +50,11 @@ class Worker(QObject):
 
 
 class MainWindow(QMainWindow):
+    _invoke = Signal(object, object)
+
     def __init__(self):
         super().__init__()
+        self._invoke.connect(self._do_invoke)
         self.setWindowTitle("CCAccess")
         self.resize(900, 600)
         self.account: Account | None = None
@@ -88,9 +90,9 @@ class MainWindow(QMainWindow):
         ll = QVBoxLayout(left)
         for w in (book_label, self.book_combo, search_label, self.search, list_label, self.list):
             ll.addWidget(w)
-        self.btn_new = QPushButton("N&uevo…")
-        self.btn_edit = QPushButton("&Editar…")
-        self.btn_del = QPushButton("Eli&minar…")
+        self.btn_new = EnterButton("N&uevo…")
+        self.btn_edit = EnterButton("&Editar…")
+        self.btn_del = EnterButton("Eli&minar…")
         self.btn_new.clicked.connect(self.new_contact)
         self.btn_edit.clicked.connect(self.edit_contact)
         self.btn_del.clicked.connect(self.delete_contact)
@@ -183,19 +185,30 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(text)
         announce(self.statusBar(), text)
 
-    def _run(self, fn, on_done) -> None:
+    @Slot(object, object)
+    def _do_invoke(self, fn, arg) -> None:
+        fn(arg)
+
+    def _start_job(self, fn, on_done, on_fail) -> None:
+        """Ejecuta fn en un hilo. on_done/on_fail se llaman SIEMPRE en el hilo principal."""
         thread = QThread(self)
         worker = Worker(fn)
         worker.moveToThread(thread)
         job = (thread, worker)
         thread.started.connect(worker.run)
-        worker.done.connect(on_done)
-        worker.failed.connect(self._on_error)
+        # Las lambdas/funciones sueltas se ejecutarían en el hilo del worker;
+        # la señal de la ventana las reenvía al hilo principal.
+        worker.done.connect(lambda r: self._invoke.emit(on_done, r))
+        if on_fail is not None:
+            worker.failed.connect(lambda m: self._invoke.emit(on_fail, m))
         worker.done.connect(thread.quit)
         worker.failed.connect(thread.quit)
-        thread.finished.connect(lambda: self._jobs.remove(job))
+        thread.finished.connect(lambda: self._invoke.emit(lambda _r: self._jobs.remove(job), None))
         self._jobs.append(job)
         thread.start()
+
+    def _run(self, fn, on_done) -> None:
+        self._start_job(fn, on_done, self._on_error)
 
     def _on_error(self, msg: str) -> None:
         self.say(f"Error: {msg}")
@@ -251,17 +264,7 @@ class MainWindow(QMainWindow):
 
     def _run_silent(self, fn, on_done) -> None:
         """Como _run pero sin avisar si falla (comprobación automática al arrancar)."""
-        thread = QThread(self)
-        worker = Worker(fn)
-        worker.moveToThread(thread)
-        job = (thread, worker)
-        thread.started.connect(worker.run)
-        worker.done.connect(on_done)
-        worker.done.connect(thread.quit)
-        worker.failed.connect(thread.quit)
-        thread.finished.connect(lambda: self._jobs.remove(job))
-        self._jobs.append(job)
-        thread.start()
+        self._start_job(fn, on_done, None)
 
     # --- cuenta -----------------------------------------------------------
     def start(self) -> None:
@@ -437,11 +440,13 @@ class MainWindow(QMainWindow):
             self.detail.clear()
             return
         c: Contact = item.data(CONTACT_ROLE)
-        lines = [f"Nombre: {c.name}"]
-        if c.org:
-            lines.append(f"Organización: {c.org}")
-        lines += [f"Teléfono: {p}" for p in c.phones]
-        lines += [f"Correo: {e}" for e in c.emails]
-        if c.note:
-            lines.append(f"Nota: {c.note}")
+        lines = describe_vcard(c.raw) if c.raw else []
+        if not lines:
+            lines = [f"Nombre: {c.name}"]
+            if c.org:
+                lines.append(f"Organización: {c.org}")
+            lines += [f"Teléfono: {p}" for p in c.phones]
+            lines += [f"Correo: {e}" for e in c.emails]
+            if c.note:
+                lines.append(f"Nota: {c.note}")
         self.detail.setPlainText("\n".join(lines))

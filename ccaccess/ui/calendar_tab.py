@@ -1,11 +1,11 @@
 from datetime import datetime, time, timedelta
 
 from PySide6.QtCore import QLocale
+from ccaccess.ui.dialogs import EnterButton
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QMessageBox,
-    QPushButton,
     QLabel,
     QPlainTextEdit,
     QSplitter,
@@ -75,9 +75,9 @@ class CalendarTab(QWidget):
         ll = QVBoxLayout(left)
         for w in (cal_label, self.cal_combo, range_label, self.range_combo, tree_label, self.tree):
             ll.addWidget(w)
-        self.btn_new = QPushButton("N&uevo…")
-        self.btn_edit = QPushButton("&Editar…")
-        self.btn_del = QPushButton("Eli&minar…")
+        self.btn_new = EnterButton("N&uevo…")
+        self.btn_edit = EnterButton("&Editar…")
+        self.btn_del = EnterButton("Eli&minar…")
         self.btn_new.clicked.connect(self.new_event)
         self.btn_edit.clicked.connect(self.edit_event)
         self.btn_del.clicked.connect(self.delete_event)

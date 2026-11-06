@@ -1,4 +1,15 @@
-from PySide6.QtWidgets import QMessageBox, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QMessageBox, QPushButton, QWidget
+
+
+class EnterButton(QPushButton):
+    """Botón que también se activa con Intro (el estándar solo responde a Espacio)."""
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.click()
+        else:
+            super().keyPressEvent(event)
 
 
 def confirm(parent: QWidget, title: str, text: str, ok_label: str) -> bool:

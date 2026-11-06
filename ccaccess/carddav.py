@@ -276,3 +276,51 @@ class CardDavClient:
 
     def delete_contact(self, contact: Contact) -> None:
         self._delete(contact.href, contact.etag)
+
+
+_LABELS = {
+    "FN": "Nombre", "N": "Nombre estructurado", "NICKNAME": "Apodo", "ORG": "Organización",
+    "TITLE": "Cargo", "ROLE": "Función", "TEL": "Teléfono", "EMAIL": "Correo",
+    "ADR": "Dirección", "URL": "Web", "BDAY": "Cumpleaños", "ANNIVERSARY": "Aniversario",
+    "NOTE": "Nota", "CATEGORIES": "Categorías", "IMPP": "Mensajería", "GENDER": "Género",
+    "TZ": "Zona horaria", "GEO": "Ubicación", "RELATED": "Relación", "LANG": "Idioma",
+}
+_SKIP = {"VERSION", "PRODID", "UID", "REV", "PHOTO", "LOGO", "SOUND", "KEY", "BEGIN", "END"}
+
+
+def _fmt_value(value) -> str:
+    if isinstance(value, vobject.vcard.Address):
+        parts = [value.street, value.code, value.city, value.region, value.country]
+        return ", ".join(p for p in (str(x).strip() for x in parts if x) if p)
+    if isinstance(value, vobject.vcard.Name):
+        parts = [value.prefix, value.given, value.additional, value.family, value.suffix]
+        return " ".join(p for p in (" ".join(x) if isinstance(x, list) else str(x or "") for x in parts) if p)
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(v) for v in value if v)
+    return str(value).strip()
+
+
+def describe_vcard(raw: str) -> list[str]:
+    """Todas las propiedades del vCard como líneas «Etiqueta (tipo): valor» para mostrarlas."""
+    try:
+        card = vobject.readOne(raw)
+    except Exception:
+        return []
+    lines: list[str] = []
+    for prop in card.getChildren():
+        key = prop.name.upper()
+        if key in _SKIP:
+            if key in ("PHOTO", "LOGO"):
+                lines.append("Foto: sí" if key == "PHOTO" else "Logotipo: sí")
+            continue
+        if key == "N":
+            continue  # redundante con FN
+        value = _fmt_value(prop.value)
+        if not value:
+            continue
+        label = _LABELS.get(key, key[2:].replace("-", " ").capitalize() if key.startswith("X-") else key.capitalize())
+        types = [t.lower() for t in prop.params.get("TYPE", []) if t.lower() != "pref"]
+        if types:
+            label += f" ({', '.join(types)})"
+        lines.append(f"{label}: {value}")
+    return lines

@@ -1,10 +1,10 @@
 # CCAccess
 
-Aplicación de escritorio para gestionar **contactos** y **calendario** de cualquier servidor **CardDAV/CalDAV** (Nextcloud, Radicale, Baïkal, mailbox.org…). Pensada desde el principio para **lectores de pantalla** y las pautas **WCAG 2.2**.
+Aplicación de escritorio para gestionar **contactos** y **calendario** de cualquier servidor **CardDAV/CalDAV** (Nextcloud, Radicale, Baïkal, mailbox.org…). Pensada desde el principio para **lectores de pantalla** usando las pautas **WCAG 2.2** para garantizar accesibilidad.
 
-Es el compañero de escritorio de [DAVx⁵](https://www.davx5.com/) en Android: ambos hablan con el mismo servidor, así que todo queda sincronizado.
+La idea vino porque uso [DAVx⁵](https://www.davx5.com/) en Android y necesitaba algo accesible que funcionara en el ordenador y que se sincronizara con el servidor.
 
-> Estado: **versión 0.1**, primera versión pública. Se ha probado en Windows 11 con mailbox.org (contactos) y con un servidor Radicale local (contactos y calendario, con crear, editar y borrar). La interfaz se ha revisado manualmente con **NVDA** (hecha por el autor) y no se encontraron problemas. JAWS, Narrator, Orca y VoiceOver no se han probado todavía.
+> Estado: **versión 0.1**, primera versión pública. Se ha probado en Windows 11 con mailbox.org (contactos) y con un servidor Radicale local (contactos y calendario, con crear, editar y borrar). La interfaz se ha revisado manualmente con **NVDA** y no se encontraron problemas. JAWS, Narrator, Orca y VoiceOver no se han probado todavía pero dice la teoría que deberían funcionar.
 
 ## Funciones
 
@@ -17,13 +17,12 @@ Es el compañero de escritorio de [DAVx⁵](https://www.davx5.com/) en Android: 
 
 ## Accesibilidad
 
-- Interfaz nativa con Qt (widgets estándar), no una web empaquetada.
+- Interfaz nativa con Qt (widgets estándar).
 - Todo se maneja con teclado. Cada campo tiene su etiqueta asociada y atajos con mnemónicos.
 - Los estados y errores se muestran en cuadros de diálogo y se anuncian al lector de pantalla.
 - Fechas como `dd/mm/aaaa` y horas como `hh:mm` en campos de texto, porque son más predecibles con lector de pantalla que los selectores de fecha.
 - La agenda es un árbol por días, no una cuadrícula dibujada.
 
-**Pruebas con lectores de pantalla:** NVDA en Windows, revisión manual sin problemas encontrados. Es una revisión del autor, no una auditoría formal de conformidad WCAG.
 
 ### Atajos
 

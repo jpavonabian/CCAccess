@@ -46,6 +46,10 @@ Si encuentras algo que no funciona bien con tu lector de pantalla, abre una [inc
 
 El ejecutable no está firmado, así que Windows SmartScreen puede mostrar un aviso la primera vez.
 
+## Actualizaciones
+
+El `.exe` comprueba al arrancar si hay una versión nueva en GitHub y te lo ofrece. También puedes usar **Ayuda > Buscar actualizaciones**. La descarga se verifica con SHA-256 y la app se reinicia sola. Si la carpeta no es escribible, abre la página de descargas.
+
 ## Configurar tu cuenta
 
 Abre **Archivo > Cuenta** (`Ctrl+Shift+A`) e introduce:
@@ -87,6 +91,13 @@ pip install pyinstaller
 ```
 
 Genera `dist\CCAccess\CCAccess.exe`.
+
+## Publicar una versión
+
+1. Sube `__version__` en `ccaccess/__init__.py` y haz commit.
+2. `git tag v0.2.0 && git push origin v0.2.0`
+
+GitHub Actions ejecuta los tests, construye el `.exe`, lo prueba con `--selftest`, y crea la release con el ZIP, `SHA256SUMS.txt` y notas automáticas.
 
 ## Limitaciones conocidas (0.1)
 

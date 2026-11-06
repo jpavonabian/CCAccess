@@ -1,6 +1,7 @@
-from PySide6.QtCore import QObject, QThread, Signal, Slot
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtCore import QObject, QThread, QTimer, QUrl, Signal, Slot
+from PySide6.QtGui import QAction, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QLabel,
     QLineEdit,
@@ -25,6 +26,7 @@ from ccaccess.ui.contact_dialog import ContactDialog
 from ccaccess.ui.dialogs import confirm
 from ccaccess.ui.account_store import Account, clear_account, load_account, save_account
 from ccaccess.ui.announce import announce
+from ccaccess import __version__, updater
 
 CONTACT_ROLE = 256  # Qt.UserRole
 
@@ -41,7 +43,7 @@ class Worker(QObject):
     def run(self):
         try:
             self.done.emit(self.fn())
-        except DavError as e:
+        except (DavError, updater.UpdateError) as e:
             self.failed.emit(str(e))
         except Exception as e:  # noqa: BLE001
             self.failed.emit(f"Error inesperado: {e}")
@@ -163,6 +165,15 @@ class MainWindow(QMainWindow):
         t2.triggered.connect(lambda: self.tabs.setCurrentIndex(1))
         s.addActions([f, lst, t1, t2])
 
+        h = self.menuBar().addMenu("A&yuda")
+        upd = QAction("&Buscar actualizaciones…", self)
+        upd.triggered.connect(lambda: self.check_updates(manual=True))
+        about = QAction("&Acerca de CCAccess", self)
+        about.triggered.connect(
+            lambda: QMessageBox.information(self, "CCAccess", f"CCAccess {__version__}")
+        )
+        h.addActions([upd, about])
+
     # --- estado -----------------------------------------------------------
     def say(self, text: str) -> None:
         self.statusBar().showMessage(text)
@@ -186,8 +197,72 @@ class MainWindow(QMainWindow):
         self.say(f"Error: {msg}")
         QMessageBox.warning(self, "CCAccess", msg)
 
+    # --- actualizaciones --------------------------------------------------
+    def check_updates(self, manual: bool = False) -> None:
+        if manual:
+            self.say("Buscando actualizaciones…")
+
+        def done(update) -> None:
+            if update is None:
+                if manual:
+                    self.say("Ya tienes la última versión.")
+                    QMessageBox.information(
+                        self, "CCAccess", f"Ya tienes la última versión ({__version__})."
+                    )
+                return
+            self._offer_update(update)
+
+        if manual:
+            self._run(updater.check_latest, done)
+        else:
+            self._run_silent(updater.check_latest, done)
+
+    def _offer_update(self, update) -> None:
+        box = QMessageBox(self)
+        box.setWindowTitle("Actualización disponible")
+        box.setText(f"Hay una versión nueva: {update.version} (tienes {__version__}).")
+        if update.notes:
+            box.setInformativeText(update.notes[:1500])
+        auto = updater.can_self_update()
+        yes = box.addButton(
+            "&Actualizar ahora" if auto else "&Abrir página de descarga",
+            QMessageBox.ButtonRole.AcceptRole,
+        )
+        later = box.addButton("&Más tarde", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(yes)
+        box.setEscapeButton(later)
+        box.exec()
+        if box.clickedButton() is not yes:
+            return
+        if not auto:
+            QDesktopServices.openUrl(QUrl(updater.RELEASES_URL))
+            return
+        self.say("Descargando actualización…")
+
+        def installed(_r) -> None:
+            self.say("Actualización lista. La aplicación se reiniciará.")
+            QApplication.quit()
+
+        self._run(lambda: updater.install_and_restart(update), installed)
+
+    def _run_silent(self, fn, on_done) -> None:
+        """Como _run pero sin avisar si falla (comprobación automática al arrancar)."""
+        thread = QThread(self)
+        worker = Worker(fn)
+        worker.moveToThread(thread)
+        job = (thread, worker)
+        thread.started.connect(worker.run)
+        worker.done.connect(on_done)
+        worker.done.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        thread.finished.connect(lambda: self._jobs.remove(job))
+        self._jobs.append(job)
+        thread.start()
+
     # --- cuenta -----------------------------------------------------------
     def start(self) -> None:
+        if updater.is_frozen():
+            QTimer.singleShot(3000, self.check_updates)
         self.account = load_account()
         if self.account and self.account.password:
             self.connect_account()

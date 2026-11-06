@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Comprobar que la etiqueta coincide con __version__
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart("v")
+          $ver = python -c "import ccaccess; print(ccaccess.__version__)"
+          if ($tag -ne $ver) { throw "Etiqueta $tag != __version__ $ver" }
+          echo "VERSION=$ver" >> $env:GITHUB_ENV
+
+      - run: pip install -r requirements.txt pyinstaller
+      - run: python -m pytest -q
+
+      - name: Construir
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Probar el ejecutable
+        shell: pwsh
+        run: |
+          ./dist/CCAccess/CCAccess.exe --selftest
+          if ($LASTEXITCODE -ne 0) { throw "selftest falló" }
+
+      - name: Empaquetar
+        shell: pwsh
+        run: |
+          $zip = "CCAccess-$env:VERSION-windows.zip"
+          Compress-Archive -Path dist/CCAccess -DestinationPath $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $zip" | Out-File SHA256SUMS.txt -Encoding ascii
+          echo "ZIP=$zip" >> $env:GITHUB_ENV
+
+      - name: Publicar release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" $env:ZIP SHA256SUMS.txt --title "CCAccess ${{ github.ref_name }}" --generate-notes

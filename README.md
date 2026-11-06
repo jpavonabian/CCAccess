@@ -4,7 +4,7 @@ Aplicación de escritorio para gestionar **contactos** y **calendario** de cualq
 
 Es el compañero de escritorio de [DAVx⁵](https://www.davx5.com/) en Android: ambos hablan con el mismo servidor, así que todo queda sincronizado.
 
-> Estado: **versión 0.1**, primera versión pública. Se ha probado en Windows 11 con mailbox.org (contactos) y con un servidor Radicale local (contactos y calendario, con crear, editar y borrar). Todavía no se ha hecho una revisión formal con NVDA, JAWS ni Narrator.
+> Estado: **versión 0.1**, primera versión pública. Se ha probado en Windows 11 con mailbox.org (contactos) y con un servidor Radicale local (contactos y calendario, con crear, editar y borrar). La interfaz se ha revisado manualmente con **NVDA** (hecha por el autor) y no se encontraron problemas. JAWS, Narrator, Orca y VoiceOver no se han probado todavía.
 
 ## Funciones
 
@@ -22,6 +22,8 @@ Es el compañero de escritorio de [DAVx⁵](https://www.davx5.com/) en Android: 
 - Los estados y errores se muestran en cuadros de diálogo y se anuncian al lector de pantalla.
 - Fechas como `dd/mm/aaaa` y horas como `hh:mm` en campos de texto, porque son más predecibles con lector de pantalla que los selectores de fecha.
 - La agenda es un árbol por días, no una cuadrícula dibujada.
+
+**Pruebas con lectores de pantalla:** NVDA en Windows, revisión manual sin problemas encontrados. Es una revisión del autor, no una auditoría formal de conformidad WCAG.
 
 ### Atajos
 
@@ -89,7 +91,7 @@ Genera `dist\CCAccess\CCAccess.exe`.
 
 ## Limitaciones conocidas (0.1)
 
-- Solo se ha probado el ejecutable en Windows.
+- Solo se ha probado el ejecutable en Windows y con NVDA. Sin probar con JAWS, Narrator, Orca ni VoiceOver.
 - Los eventos que se repiten solo permiten cambiar título, lugar y descripción (afecta a toda la serie). No se editan fechas, excepciones ni alarmas.
 - No hay tareas, alarmas ni invitados.
 - Sin caché: hace falta conexión para ver cualquier dato.

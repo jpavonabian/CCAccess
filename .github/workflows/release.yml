@@ -3,6 +3,11 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Etiqueta existente a publicar (p. ej. v0.1.1)"
+        required: true
 
 permissions:
   contents: write
@@ -12,6 +17,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -20,7 +27,7 @@ jobs:
       - name: Comprobar que la etiqueta coincide con __version__
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}".TrimStart("v")
+          $tag = "${{ inputs.tag || github.ref_name }}".TrimStart("v")
           $ver = python -c "import ccaccess; print(ccaccess.__version__)"
           if ($tag -ne $ver) { throw "Etiqueta $tag != __version__ $ver" }
           echo "VERSION=$ver" >> $env:GITHUB_ENV
@@ -51,4 +58,4 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" $env:ZIP SHA256SUMS.txt --title "CCAccess ${{ github.ref_name }}" --generate-notes
+        run: gh release create "${{ inputs.tag || github.ref_name }}" $env:ZIP SHA256SUMS.txt --title "CCAccess ${{ inputs.tag || github.ref_name }}" --generate-notes

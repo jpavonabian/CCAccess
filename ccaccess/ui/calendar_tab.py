@@ -1,7 +1,7 @@
 from datetime import datetime, time, timedelta
 
 from PySide6.QtCore import QLocale
-from ccaccess.ui.dialogs import EnterButton
+from ccaccess.ui.dialogs import EnterButton, make_readonly_navigable
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
@@ -66,7 +66,7 @@ class CalendarTab(QWidget):
         tree_label.setBuddy(self.tree)
 
         self.detail = QPlainTextEdit()
-        self.detail.setReadOnly(True)
+        make_readonly_navigable(self.detail)
         self.detail.setAccessibleName("Detalles del evento")
         detail_label = QLabel("&Detalles:")
         detail_label.setBuddy(self.detail)

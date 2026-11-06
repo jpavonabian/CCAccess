@@ -22,7 +22,7 @@ from ccaccess.carddav import AddressBook, CardDavClient, Contact, DavError, desc
 from ccaccess.ui.calendar_tab import CalendarTab
 from ccaccess.ui.account_dialog import AccountDialog
 from ccaccess.ui.contact_dialog import ContactDialog
-from ccaccess.ui.dialogs import EnterButton, confirm
+from ccaccess.ui.dialogs import EnterButton, confirm, make_readonly_navigable
 from ccaccess.ui.account_store import Account, clear_account, load_account, save_account
 from ccaccess.ui.announce import announce
 from ccaccess.ui.manual_dialog import ManualDialog
@@ -81,7 +81,7 @@ class MainWindow(QMainWindow):
         list_label.setBuddy(self.list)
 
         self.detail = QPlainTextEdit()
-        self.detail.setReadOnly(True)
+        make_readonly_navigable(self.detail)
         self.detail.setAccessibleName("Detalles del contacto")
         detail_label = QLabel("&Detalles:")
         detail_label.setBuddy(self.detail)

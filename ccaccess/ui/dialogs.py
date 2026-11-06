@@ -24,3 +24,15 @@ def confirm(parent: QWidget, title: str, text: str, ok_label: str) -> bool:
     box.setEscapeButton(no)
     box.exec()
     return box.clickedButton() is yes
+
+
+def make_readonly_navigable(box) -> None:
+    """Solo lectura pero con cursor y selección por teclado (flechas, Mayús+flechas, Ctrl+E).
+
+    setReadOnly(True) deja solo «seleccionable con ratón»: las flechas no mueven el cursor
+    y un lector de pantalla se queda en la primera línea.
+    """
+    box.setReadOnly(True)
+    box.setTextInteractionFlags(
+        Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard
+    )

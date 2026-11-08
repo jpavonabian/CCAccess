@@ -4,7 +4,7 @@ Aplicación de escritorio para gestionar **contactos** y **calendario** de cualq
 
 La idea vino porque uso [DAVx⁵](https://www.davx5.com/) en Android y necesitaba algo accesible que funcionara en el ordenador y que se sincronizara con el servidor.
 
-> Estado: **versión 0.1**, primera versión pública. Se ha probado en Windows 11 con mailbox.org (contactos) y con un servidor Radicale local (contactos y calendario, con crear, editar y borrar). La interfaz se ha revisado manualmente con **NVDA** y no se encontraron problemas. JAWS, Narrator, Orca y VoiceOver no se han probado todavía pero dice la teoría que deberían funcionar.
+> Estado: en desarrollo. Se ha probado en Windows 11 con mailbox.org (contactos) y con un servidor Radicale local (contactos y calendario, con crear, editar y borrar). La interfaz se ha revisado manualmente con **NVDA** y no se encontraron problemas. JAWS, Narrator, Orca y VoiceOver no se han probado todavía pero dice la teoría que deberían funcionar.
 
 ## Funciones
 
@@ -42,7 +42,7 @@ Si encuentras algo que no funciona bien con tu lector de pantalla, abre una [inc
 
 ## Instalación (Windows)
 
-1. Descarga `CCAccess-0.1.0-windows.zip` desde [Releases](../../releases).
+1. Descarga el ZIP `CCAccess-<versión>-windows.zip` más reciente desde [Releases](../../releases).
 2. Descomprímelo y ejecuta `CCAccess.exe`.
 
 El ejecutable no está firmado, así que Windows SmartScreen puede mostrar un aviso la primera vez.
@@ -100,7 +100,7 @@ Genera `dist\CCAccess\CCAccess.exe`.
 
 GitHub Actions ejecuta los tests, construye el `.exe`, lo prueba con `--selftest`, y crea la release con el ZIP, `SHA256SUMS.txt` y notas automáticas.
 
-## Limitaciones conocidas (0.1)
+## Limitaciones conocidas
 
 - Solo se ha probado el ejecutable en Windows y con NVDA. Sin probar con JAWS, Narrator, Orca ni VoiceOver.
 - Los eventos que se repiten solo permiten cambiar título, lugar y descripción (afecta a toda la serie). No se editan fechas, excepciones ni alarmas.

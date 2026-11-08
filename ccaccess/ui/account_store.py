@@ -13,6 +13,7 @@ class Account:
     url: str
     username: str
     password: str
+    caldav_url: str = ""  # vacía = deducirla de `url`
 
 
 def _settings() -> QSettings:
@@ -26,7 +27,7 @@ def load_account() -> Account | None:
     if not url or not user:
         return None
     pw = keyring.get_password(SERVICE, f"{user}@{url}") or ""
-    return Account(url, user, pw)
+    return Account(url, user, pw, s.value("account/caldav_url", "") or "")
 
 
 def clear_account() -> None:
@@ -47,4 +48,5 @@ def save_account(acc: Account) -> None:
     s = _settings()
     s.setValue("account/url", acc.url)
     s.setValue("account/username", acc.username)
+    s.setValue("account/caldav_url", acc.caldav_url)
     keyring.set_password(SERVICE, f"{acc.username}@{acc.url}", acc.password)

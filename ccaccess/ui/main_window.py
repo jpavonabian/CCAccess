@@ -318,14 +318,18 @@ class MainWindow(QMainWindow):
         self.detail.setPlainText("Conectando con el servidor…")
         self._run(client.discover_addressbooks, self._on_books)
 
-        cal_client = CalDavClient(caldav_url_from(a.url), a.username, a.password)
-        self._run(cal_client.discover_calendars, lambda cals: self._on_calendars(cal_client, cals))
+        cal_client = CalDavClient(a.caldav_url or caldav_url_from(a.url), a.username, a.password)
+        # Un fallo del calendario no debe tapar los contactos (ni al revés): va a la barra de estado.
+        self._start_job(
+            cal_client.discover_calendars,
+            lambda cals: self._on_calendars(cal_client, cals),
+            lambda msg: self.say(f"Calendarios: {msg} Si usas iCloud u otro proveedor con otra dirección "
+                                 "para calendarios, indícala en Cuenta."),
+        )
 
     def _on_calendars(self, client: CalDavClient, cals: list[Calendar]) -> None:
         if not cals:
-            QMessageBox.information(
-                self, "CCAccess", "No se encontraron calendarios en esta cuenta."
-            )
+            self.say("No se encontraron calendarios en esta cuenta.")
             return
         self.calendar_tab.set_calendars(client, cals)
 

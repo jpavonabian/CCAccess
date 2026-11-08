@@ -45,6 +45,11 @@ def test_save_load_clear(store):
     assert store.data == {}
 
 
+def test_caldav_url_roundtrip(store):
+    save_account(Account("https://contacts.icloud.com", "ana", "pw", "https://caldav.icloud.com"))
+    assert load_account().caldav_url == "https://caldav.icloud.com"
+
+
 def test_clear_when_empty(store):
     clear_account()  # no debe fallar
     assert load_account() is None

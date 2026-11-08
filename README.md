@@ -55,7 +55,7 @@ El `.exe` comprueba al arrancar si hay una versión nueva en GitHub y te lo ofre
 
 Abre **Archivo > Cuenta** (`Ctrl+Shift+A`) e introduce:
 
-- **URL:** la dirección DAV de tu servidor. Para contactos, mailbox.org usa `https://dav.mailbox.org/carddav/`. La de calendario se deduce cambiando `/carddav/` por `/caldav/`. En Nextcloud suele ser `https://tu-servidor/remote.php/dav`.
+- **URL:** la dirección DAV de tu servidor. Para contactos, mailbox.org usa `https://dav.mailbox.org/carddav/`. La de calendario se deduce cambiando `/carddav/` por `/caldav/`; si tu proveedor usa otra dirección para calendarios, escríbela en **URL de calendarios (opcional)**. Si el servidor rechaza la URL, se prueba también `/.well-known/carddav` y `/.well-known/caldav`. **iCloud (sin probar aún):** contactos `https://contacts.icloud.com`, calendarios `https://caldav.icloud.com` (se deduce sola) y una contraseña específica de app generada en appleid.apple.com, no la de tu Apple ID. En Nextcloud suele ser `https://tu-servidor/remote.php/dav`.
 - **Usuario y contraseña.** Si tu servidor usa verificación en dos pasos, crea una contraseña de aplicación.
 
 ## Dónde se guardan los datos

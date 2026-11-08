@@ -20,12 +20,20 @@ class AccountDialog(QDialog):
 
         intro = QLabel(
             "Introduce los datos de tu servidor CardDAV/CalDAV "
-            "(por ejemplo Nextcloud, Radicale o Baïkal)."
+            "(por ejemplo Nextcloud, Radicale o Baïkal). "
+            "En iCloud usa https://contacts.icloud.com, calendarios https://caldav.icloud.com "
+            "y una contraseña específica de app, no la de tu Apple ID."
         )
         intro.setWordWrap(True)
 
         self.url = QLineEdit(account.url if account else "")
         self.url.setPlaceholderText("https://ejemplo.com/remote.php/dav")
+        self.caldav_url = QLineEdit(account.caldav_url if account else "")
+        self.caldav_url.setPlaceholderText("Vacía: se deduce de la anterior")
+        self.caldav_url.setAccessibleDescription(
+            "Solo si el servidor de calendarios está en una dirección distinta a la de contactos, "
+            "como en iCloud: https://caldav.icloud.com"
+        )
         self.user = QLineEdit(account.username if account else "")
         self.password = QLineEdit(account.password if account else "")
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
@@ -37,6 +45,7 @@ class AccountDialog(QDialog):
         form = QFormLayout()
         for label, widget in (
             ("&URL del servidor:", self.url),
+            ("URL de c&alendarios (opcional):", self.caldav_url),
             ("&Usuario:", self.user),
             ("&Contraseña:", self.password),
         ):
@@ -58,13 +67,18 @@ class AccountDialog(QDialog):
         layout.addWidget(self.error)
         layout.addWidget(buttons)
 
-        self.setTabOrder(self.url, self.user)
+        self.setTabOrder(self.url, self.caldav_url)
+        self.setTabOrder(self.caldav_url, self.user)
         self.setTabOrder(self.user, self.password)
 
     def _validate(self) -> None:
         url = self.url.text().strip()
         if not url.lower().startswith(("http://", "https://")):
             self._fail("La URL debe empezar por http:// o https://.", self.url)
+        elif self.caldav_url.text().strip() and not self.caldav_url.text().strip().lower().startswith(
+            ("http://", "https://")
+        ):
+            self._fail("La URL de calendarios debe empezar por http:// o https://.", self.caldav_url)
         elif not self.user.text().strip():
             self._fail("Falta el usuario.", self.user)
         elif not self.password.text():
@@ -79,4 +93,9 @@ class AccountDialog(QDialog):
         widget.setFocus()
 
     def account(self) -> Account:
-        return Account(self.url.text().strip(), self.user.text().strip(), self.password.text())
+        return Account(
+            self.url.text().strip(),
+            self.user.text().strip(),
+            self.password.text(),
+            self.caldav_url.text().strip(),
+        )

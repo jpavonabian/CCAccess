@@ -1,3 +1,4 @@
+import pytest
 from datetime import datetime
 
 from ccaccess.caldav_client import caldav_url_from, parse_events
@@ -47,6 +48,49 @@ def test_garbage():
 def test_url_swap():
     assert caldav_url_from("https://dav.mailbox.org/carddav/") == "https://dav.mailbox.org/caldav/"
     assert caldav_url_from("https://x.org/dav/") == "https://x.org/dav/"
+    assert caldav_url_from("https://contacts.icloud.com") == "https://caldav.icloud.com"
+    assert caldav_url_from("https://Contacts.iCloud.com:443/x/") == "https://caldav.icloud.com:443/x/"
+
+
+class _Resp:
+    def __init__(self, status, location=None):
+        self.status_code = status
+        self.headers = {"Location": location} if location else {}
+
+
+def test_wellknown_redirect():
+    from ccaccess.carddav import CardDavClient
+
+    c = CardDavClient("https://x.org/", "u", "p")
+    c.session.request = lambda *a, **k: _Resp(301, "/dav/")
+    assert c._wellknown("caldav") == "https://x.org/dav/"
+    c.session.request = lambda *a, **k: _Resp(404)
+    assert c._wellknown("caldav") is None
+
+
+def test_propfind_start_falls_back_to_wellknown():
+    from ccaccess.carddav import CardDavClient, DavError
+
+    c = CardDavClient("https://x.org/", "u", "p")
+    calls = []
+
+    def fake(method, url, body, depth="0"):
+        calls.append(url)
+        if url == "https://x.org/":
+            raise DavError("El servidor respondió 404 a PROPFIND")
+        return "ok"
+
+    c._request = fake
+    c._wellknown = lambda kind: "https://x.org/dav/"
+    assert c._propfind_start("<x/>", "caldav") == ("https://x.org/dav/", "ok")
+    assert calls == ["https://x.org/", "https://x.org/dav/"]
+
+    def auth_fail(*a, **k):
+        raise DavError("Usuario o contraseña incorrectos.")
+
+    c._request = auth_fail
+    with pytest.raises(DavError):
+        c._propfind_start("<x/>", "caldav")
 
 
 def test_build_new_event_roundtrip():

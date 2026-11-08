@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import uuid
 from datetime import datetime, time, timedelta, timezone
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit
 from xml.etree import ElementTree as ET
 
 import icalendar
@@ -37,8 +37,16 @@ class Event:
     recurring: bool = False
 
 
+# Proveedores cuyo servidor de calendarios está en otro host que el de contactos.
+KNOWN_CALDAV_HOSTS = {"contacts.icloud.com": "caldav.icloud.com"}
+
+
 def caldav_url_from(url: str) -> str:
-    """Si la URL apunta a /carddav/, devuelve la equivalente de /caldav/."""
+    """Deduce la URL de calendarios a partir de la de contactos."""
+    parts = urlsplit(url)
+    host = (parts.hostname or "").lower()
+    if host in KNOWN_CALDAV_HOSTS:
+        return urlunsplit(parts._replace(netloc=KNOWN_CALDAV_HOSTS[host] + (f":{parts.port}" if parts.port else "")))
     if "/carddav" in url:
         return url.replace("/carddav", "/caldav", 1)
     return url
@@ -104,14 +112,13 @@ class CalDavClient(CardDavClient):
     """Reutiliza la parte HTTP/WebDAV de CardDavClient."""
 
     def discover_calendars(self) -> list[Calendar]:
-        start = self.base
         info_xml = (
             '<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
             "<d:prop><d:resourcetype/><d:displayname/>"
             "<d:current-user-principal/><c:calendar-home-set/>"
             "</d:prop></d:propfind>"
         )
-        root = self._request("PROPFIND", start, info_xml)
+        start, root = self._propfind_start(info_xml, "caldav")
 
         for resp in root.findall("d:response", NS):
             if resp.find(".//cal:calendar", NS) is not None:

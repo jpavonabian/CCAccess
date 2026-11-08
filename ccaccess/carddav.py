@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 from xml.etree import ElementTree as ET
 
 import requests
@@ -195,15 +195,41 @@ class CardDavClient:
                 raise
             return None
 
+    def _wellknown(self, kind: str) -> str | None:
+        """Sigue /.well-known/<kind> (RFC 6764) y devuelve la URL a la que redirige, si la hay."""
+        parts = urlsplit(self.base)
+        wk = f"{parts.scheme}://{parts.netloc}/.well-known/{kind}"
+        try:
+            r = self.session.request(
+                "PROPFIND", wk, data=b"", headers={"Depth": "0"}, timeout=TIMEOUT, allow_redirects=False
+            )
+        except requests.RequestException:
+            return None
+        loc = r.headers.get("Location")
+        if r.status_code in (301, 302, 303, 307, 308) and loc:
+            return urljoin(wk, loc)
+        return None
+
+    def _propfind_start(self, xml: str, kind: str) -> tuple[str, ET.Element]:
+        """PROPFIND a la URL base; si el servidor la rechaza, prueba la ruta /.well-known/<kind>."""
+        try:
+            return self.base, self._request("PROPFIND", self.base, xml)
+        except DavError as e:
+            if "incorrectos" in str(e) or "No se pudo conectar" in str(e):
+                raise
+            alt = self._wellknown(kind)
+            if not alt or alt == self.base:
+                raise
+            return alt, self._request("PROPFIND", alt, xml)
+
     def discover_addressbooks(self) -> list[AddressBook]:
-        start = self.base
         info_xml = (
             '<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:carddav">'
             "<d:prop><d:resourcetype/><d:displayname/>"
             "<d:current-user-principal/><c:addressbook-home-set/>"
             "</d:prop></d:propfind>"
         )
-        root = self._request("PROPFIND", start, info_xml)
+        start, root = self._propfind_start(info_xml, "carddav")
 
         # 1) La URL ya es una libreta de direcciones.
         for resp in root.findall("d:response", NS):

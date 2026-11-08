@@ -17,7 +17,8 @@ from PySide6.QtWidgets import (
 
 from ccaccess.caldav_client import CalDavClient, Calendar, Event, alarm_label
 from ccaccess.ui.announce import announce
-from ccaccess.ui.dialogs import confirm
+from ccaccess.recurrence import describe_rrule
+from ccaccess.ui.dialogs import ask_scope, confirm
 from ccaccess.reminders import ReminderTracker
 from ccaccess.ui.event_dialog import EventDialog
 from ccaccess.ui.reminder_dialog import DISMISS, SHOW, ask_reminder
@@ -264,6 +265,12 @@ class CalendarTab(QWidget):
             lines.append(f"Fin: {day_title(ev.end)}, {ev.end:%H:%M}")
         if ev.location:
             lines.append(f"Lugar: {ev.location}")
+        if ev.rrule:
+            lines.append(f"Repetición: {describe_rrule(ev.rrule, ev.occ_start or ev.start)}")
+        elif ev.recurring:
+            lines.append("Repetición: en fechas concretas")
+        if ev.is_exception:
+            lines.append("Esta ocurrencia se ha cambiado respecto al resto de la serie.")
         if ev.alarm is not None:
             lines.append(f"Aviso: {alarm_label(ev.alarm)}")
         if ev.calendar:
@@ -305,7 +312,14 @@ class CalendarTab(QWidget):
         current = self._current_event()
         if client is None or current is None:
             return
-        dlg = EventDialog(self, current, self.calendars)
+        scope = ""
+        if current.recurring:
+            scope = ask_scope(
+                self, "Editar evento repetido", f"{current.summary} se repite. ¿Qué quieres editar?"
+            )
+            if scope is None:
+                return
+        dlg = EventDialog(self, current, self.calendars, scope)
         if dlg.exec():
             ev = dlg.result_event()
             self._write(lambda: client.save_event(None, ev), f"Evento {ev.summary} guardado.")
@@ -315,8 +329,21 @@ class CalendarTab(QWidget):
         current = self._current_event()
         if client is None or current is None:
             return
-        text = f"¿Eliminar el evento {current.summary} del servidor? No se puede deshacer."
+        scope = ""
         if current.recurring:
-            text = f"{current.summary} se repite. Se eliminará toda la serie del servidor. No se puede deshacer. ¿Continuar?"
-        if confirm(self, "Eliminar evento", text, "&Eliminar"):
-            self._write(lambda: client.delete_event(current), f"Evento {current.summary} eliminado.")
+            scope = ask_scope(
+                self,
+                "Eliminar evento repetido",
+                f"{current.summary} se repite. ¿Qué quieres eliminar del servidor? No se puede deshacer.",
+                destructive=True,
+            )
+            if scope is None:
+                return
+        elif not confirm(
+            self,
+            "Eliminar evento",
+            f"¿Eliminar el evento {current.summary} del servidor? No se puede deshacer.",
+            "&Eliminar",
+        ):
+            return
+        self._write(lambda: client.delete_event(current, scope), f"Evento {current.summary} eliminado.")

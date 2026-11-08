@@ -11,6 +11,7 @@ La idea vino porque uso [DAVx⁵](https://www.davx5.com/) en Android y necesitab
 - Cuenta con URL, usuario y contraseña. La contraseña se guarda en el llavero del sistema.
 - **Contactos:** lista con búsqueda, detalles completos, crear, editar y eliminar. El editor, en tres pestañas, cubre nombre (prefijo, nombre de pila, segundo nombre, apellidos, sufijo, apodo), organización, cargo, función, teléfonos, correos, direcciones, webs, mensajería, cumpleaños, aniversario, categorías y nota. Los campos repetibles se escriben uno por línea, con tipo opcional: `móvil: 600 000 000`, `trabajo: ana@empresa.com`, `casa: Calle 1; Madrid; Madrid; 28001; España`. Lo que la app no muestra (foto, campos personalizados) se conserva al guardar.
 - **Calendario:** agenda agrupada por día (7, 30 o 90 días), con recurrencias expandidas. Crear, editar y eliminar eventos, de hora o de todo el día.
+- **Repeticiones:** los eventos pueden repetirse cada día, semana (con los días que quieras, por ejemplo `L X`), mes o año, cada cierto intervalo y hasta una fecha o un número de veces. Al editar o eliminar un evento que se repite, la app pregunta si afecta a **solo ese evento**, a **ese y los siguientes** o a **toda la serie**. Mover la fecha u hora de la serie entera la desplaza completa. Las excepciones (una ocurrencia cambiada o borrada) se guardan como las entienden otros clientes de calendario. Las reglas más complejas (por ejemplo «el primer lunes de cada mes») se muestran, se respetan y se conservan, pero no se editan.
 - **Avisos:** cada evento puede llevar un aviso (en el momento, 5, 10, 15 o 30 minutos, 1 o 2 horas, 1 o 2 días, o 1 semana antes). Mientras CCAccess está abierto suena un sonido corto y aparece un diálogo con **Posponer** (5 minutos, 15 minutos, 1 hora o hasta que empiece), **Descartar** y **Ver en la agenda**. Con Esc se pospone 5 minutos. Se vigilan los eventos de los próximos 14 días y se pueden desactivar en **Archivo > Avisos de eventos**. Los avisos de otros clientes del servidor se respetan y no se pierden al editar.
 - Detección de cambios en el servidor: si alguien modificó el elemento mientras lo editabas, la app no sobrescribe y te avisa.
 - Opción **Archivo > Borrar datos guardados** para quitar del equipo la URL, el usuario y la contraseña.
@@ -104,7 +105,7 @@ GitHub Actions ejecuta los tests, construye el `.exe`, lo prueba con `--selftest
 ## Limitaciones conocidas
 
 - Solo se ha probado el ejecutable en Windows y con NVDA. Sin probar con JAWS, Narrator, Orca ni VoiceOver.
-- Los eventos que se repiten solo permiten cambiar título, lugar y descripción (afecta a toda la serie). No se editan fechas ni excepciones.
+- Las repeticiones se editan con reglas sencillas (día, semana, mes, año). Las reglas avanzadas se conservan sin poder cambiarse. Al cambiar «este y los siguientes» no se trasladan a la serie nueva las excepciones posteriores.
 - No hay tareas ni invitados.
 - Los avisos solo suenan con CCAccess abierto, y solo se edita un aviso por evento (el primero que cuente desde el inicio); los demás se conservan tal cual. Los pospuestos o descartados se olvidan al cerrar la aplicación.
 - Sin caché: hace falta conexión para ver cualquier dato.

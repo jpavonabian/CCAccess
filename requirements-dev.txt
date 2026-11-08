@@ -1,0 +1,2 @@
+# Solo para desarrollo y CI: servidor CalDAV local con el que se prueban las series.
+Radicale>=3

@@ -1,7 +1,7 @@
 """Cliente CalDAV mínimo (solo lectura), sin dependencias de Qt."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import uuid
 from datetime import datetime, time, timedelta, timezone
 from urllib.parse import urljoin, urlsplit, urlunsplit
@@ -36,6 +36,13 @@ class Event:
     raw: str = ""  # iCalendar original, para conservar lo que la app no edita
     recurring: bool = False
     alarm: int | None = None  # minutos antes del inicio del primer aviso; None = sin aviso
+    rrule: str = ""  # regla de repetición de la serie (RRULE), vacía si no se repite
+    # Solo en ocurrencias leídas del servidor: identifican qué ocurrencia es y su horario original.
+    occ_key: object = None  # RECURRENCE-ID de la ocurrencia (fecha o datetime, con su zona)
+    occ_start: datetime | None = None
+    occ_end: datetime | None = None
+    is_exception: bool = False  # la ocurrencia tiene su propio VEVENT dentro de la serie
+    scope: str = ""  # al guardar una serie: "this", "following" o "" (= toda la serie)
 
 
 # Proveedores cuyo servidor de calendarios está en otro host que el de contactos.
@@ -88,6 +95,15 @@ def _alarm_minutes(vevent) -> int | None:
     return int(-sub.get("TRIGGER").dt.total_seconds() // 60)
 
 
+def _same_instant(a, b) -> bool:
+    """Compara dos valores de fecha/hora de iCalendar (fecha, flotante o con zona)."""
+    if isinstance(a, datetime) != isinstance(b, datetime):
+        return False
+    if isinstance(a, datetime) and (a.tzinfo is None) != (b.tzinfo is None):
+        return a.replace(tzinfo=None) == b.replace(tzinfo=None)
+    return a == b
+
+
 def _to_local(value) -> tuple[datetime, bool]:
     if isinstance(value, datetime):
         if value.tzinfo is not None:
@@ -105,6 +121,16 @@ def parse_events(
     except Exception:
         return []
     out: list[Event] = []
+    masters = {
+        str(c.get("UID", "")): c
+        for c in cal.walk("VEVENT")
+        if c.get("RECURRENCE-ID") is None
+    }
+    overrides = [
+        (str(c.get("UID", "")), c["RECURRENCE-ID"].dt)
+        for c in cal.walk("VEVENT")
+        if c.get("RECURRENCE-ID") is not None
+    ]
     recurring_uids = {
         str(c.get("UID", ""))
         for c in cal.walk("VEVENT")
@@ -124,9 +150,16 @@ def parse_events(
             e = s + comp.get("DURATION").dt
         else:
             e = s + (timedelta(days=1) if all_day else timedelta())
+        uid = str(comp.get("UID", ""))
+        is_rec = uid in recurring_uids
+        key = comp["RECURRENCE-ID"].dt if comp.get("RECURRENCE-ID") is not None else comp["DTSTART"].dt
+        master = masters.get(uid)
+        rrule = ""
+        if is_rec and master is not None and master.get("RRULE") is not None:
+            rrule = master["RRULE"].to_ical().decode()
         out.append(
             Event(
-                uid=str(comp.get("UID", "")),
+                uid=uid,
                 summary=str(comp.get("SUMMARY", "")).strip() or "(sin título)",
                 start=s,
                 end=e,
@@ -137,8 +170,13 @@ def parse_events(
                 href=href,
                 etag=etag,
                 raw=ics,
-                recurring=str(comp.get("UID", "")) in recurring_uids,
+                recurring=is_rec,
                 alarm=_alarm_minutes(comp),
+                rrule=rrule,
+                occ_key=key if is_rec else None,
+                occ_start=s,
+                occ_end=e,
+                is_exception=is_rec and any(u == uid and _same_instant(k, key) for u, k in overrides),
             )
         )
     out.sort(key=lambda ev: (ev.start, ev.summary.casefold()))
@@ -225,14 +263,46 @@ class CalDavClient(CardDavClient):
     def save_event(self, cal: Calendar, ev: Event) -> None:
         """Crea el evento (si no tiene href) o actualiza el existente."""
         if ev.href:
+            if ev.recurring and ev.scope == "following":
+                return self._save_following(ev)
             self._put(ev.href, build_ics(ev, ev.uid), "text/calendar", etag=ev.etag)
         else:
             uid = str(uuid.uuid4())
             base = cal.url if cal.url.endswith("/") else cal.url + "/"
             self._put(urljoin(base, f"{uid}.ics"), build_ics(ev, uid), "text/calendar", new=True)
 
-    def delete_event(self, ev: Event) -> None:
-        self._delete(ev.href, ev.etag)
+    def _save_following(self, ev: Event) -> None:
+        """Cambia esta ocurrencia y las siguientes: acorta la serie y crea otra desde aquí."""
+        from ccaccess.recurrence import split_following
+
+        new_uid = str(uuid.uuid4())
+        parts = split_following(ev.raw, ev, ev.uid, new_uid)
+        if parts is None:  # es la primera: lo mismo que editar toda la serie
+            ics = build_ics(replace(ev, scope=""), ev.uid)
+            return self._put(ev.href, ics, "text/calendar", etag=ev.etag)
+        short_ics, new_ics = parts
+        new_href = urljoin(ev.href, f"{new_uid}.ics")
+        self._put(new_href, new_ics, "text/calendar", new=True)
+        try:
+            self._put(ev.href, short_ics, "text/calendar", etag=ev.etag)
+        except DavError:
+            try:  # que no queden las dos series solapadas
+                self._delete(new_href)
+            except DavError:
+                pass
+            raise
+
+    def delete_event(self, ev: Event, scope: str = "") -> None:
+        """Borra el evento. En series, scope es «this» (una ocurrencia), «following» o «» (todo)."""
+        if not ev.recurring or scope not in ("this", "following"):
+            return self._delete(ev.href, ev.etag)
+        from ccaccess.recurrence import delete_following, delete_occurrence
+
+        fn = delete_occurrence if scope == "this" else delete_following
+        ics = fn(ev.raw, ev, ev.uid)
+        if ics is None:  # era la primera ocurrencia: no queda nada
+            return self._delete(ev.href, ev.etag)
+        self._put(ev.href, ics, "text/calendar", etag=ev.etag)
 
 
 def _set_start_alarm(vevent, ev: Event) -> None:
@@ -258,6 +328,10 @@ def _set_start_alarm(vevent, ev: Event) -> None:
 def build_ics(ev: Event, uid: str) -> str:
     """Genera el iCalendar de `ev`. Si tiene `raw`, parte de él y conserva el resto de campos."""
     now = datetime.now(timezone.utc)
+    if ev.raw and ev.recurring:
+        from ccaccess.recurrence import edit_occurrence, edit_series
+
+        return (edit_occurrence if ev.scope == "this" else edit_series)(ev.raw, ev, uid)
     if ev.raw:
         cal = icalendar.Calendar.from_ical(ev.raw)
         masters = [
@@ -284,15 +358,17 @@ def build_ics(ev: Event, uid: str) -> str:
         vevent.add("LOCATION", ev.location)
     if ev.description:
         vevent.add("DESCRIPTION", ev.description)
-    if not ev.recurring:
-        for key in ("DTSTART", "DTEND", "DURATION"):
-            vevent.pop(key, None)
-        if ev.all_day:
-            vevent.add("DTSTART", ev.start.date())
-            vevent.add("DTEND", ev.end.date())
-        else:
-            vevent.add("DTSTART", ev.start.astimezone(timezone.utc))
-            vevent.add("DTEND", ev.end.astimezone(timezone.utc))
+    for key in ("DTSTART", "DTEND", "DURATION"):
+        vevent.pop(key, None)
+    if ev.all_day:
+        vevent.add("DTSTART", ev.start.date())
+        vevent.add("DTEND", ev.end.date())
+    else:
+        vevent.add("DTSTART", ev.start.astimezone(timezone.utc))
+        vevent.add("DTEND", ev.end.astimezone(timezone.utc))
+    vevent.pop("RRULE", None)
+    if ev.rrule:  # evento nuevo (o sin repetición) al que se le pone una regla
+        vevent.add("RRULE", icalendar.vRecur.from_ical(ev.rrule))
     return cal.to_ical().decode("utf-8")
 
 

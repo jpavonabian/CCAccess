@@ -32,7 +32,7 @@ jobs:
           if ($tag -ne $ver) { throw "Etiqueta $tag != __version__ $ver" }
           echo "VERSION=$ver" >> $env:GITHUB_ENV
 
-      - run: pip install -r requirements.txt pyinstaller
+      - run: pip install -r requirements.txt -r requirements-dev.txt pyinstaller
       - run: python -m pytest -q
 
       - name: Construir

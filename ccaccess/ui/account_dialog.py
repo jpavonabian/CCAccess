@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
 )
 
 from ccaccess.ui.account_store import Account
-from ccaccess.ui.announce import announce
 
 
 class AccountDialog(QDialog):
@@ -18,29 +17,28 @@ class AccountDialog(QDialog):
         self.setWindowTitle("Cuenta del servidor")
         self.setMinimumWidth(480)
 
-        intro = QLabel(
-            "Introduce los datos de tu servidor CardDAV/CalDAV "
-            "(por ejemplo Nextcloud, Radicale o Baïkal). "
-            "En iCloud usa https://contacts.icloud.com, calendarios https://caldav.icloud.com "
-            "y una contraseña específica de app, no la de tu Apple ID."
-        )
+        intro = QLabel("Datos de tu servidor CardDAV/CalDAV, como Nextcloud, Radicale o iCloud.")
         intro.setWordWrap(True)
 
+        # Sin placeholders: Qt los expone como descripción y NVDA los repetiría.
+        # Cada ayuda va una sola vez, como descripción accesible del campo.
         self.url = QLineEdit(account.url if account else "")
-        self.url.setPlaceholderText("https://ejemplo.com/remote.php/dav")
+        self.url.setAccessibleDescription(
+            "Por ejemplo https://ejemplo.com/remote.php/dav. En iCloud, https://contacts.icloud.com"
+        )
         self.caldav_url = QLineEdit(account.caldav_url if account else "")
-        self.caldav_url.setPlaceholderText("Vacía: se deduce de la anterior")
         self.caldav_url.setAccessibleDescription(
-            "Solo si el servidor de calendarios está en una dirección distinta a la de contactos, "
-            "como en iCloud: https://caldav.icloud.com"
+            "Déjala vacía para deducirla de la anterior. En iCloud, https://caldav.icloud.com"
         )
         self.user = QLineEdit(account.username if account else "")
         self.password = QLineEdit(account.password if account else "")
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password.setAccessibleDescription("En iCloud, una contraseña específica de app")
 
+        # Oculto hasta que hay un error, para que no sea una etiqueta vacía más.
         self.error = QLabel("")
         self.error.setWordWrap(True)
-        self.error.setAccessibleName("Error")
+        self.error.hide()
 
         form = QFormLayout()
         for label, widget in (
@@ -88,7 +86,7 @@ class AccountDialog(QDialog):
 
     def _fail(self, msg: str, widget) -> None:
         self.error.setText(f"Error: {msg}")
-        announce(self.error, msg)
+        self.error.show()
         QMessageBox.warning(self, "Datos incompletos", msg)
         widget.setFocus()
 

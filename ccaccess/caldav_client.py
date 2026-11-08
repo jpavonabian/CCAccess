@@ -271,6 +271,29 @@ class CalDavClient(CardDavClient):
             base = cal.url if cal.url.endswith("/") else cal.url + "/"
             self._put(urljoin(base, f"{uid}.ics"), build_ics(ev, uid), "text/calendar", new=True)
 
+    def import_event(self, cal: Calendar, uid: str, ics: str) -> None:
+        """Crea un evento ya escrito (importación). Falla con DavConflict si ese UID ya existe."""
+        from ccaccess.exchange import safe_name
+
+        base = cal.url if cal.url.endswith("/") else cal.url + "/"
+        self._put(urljoin(base, safe_name(uid, ".ics")), ics, "text/calendar", new=True)
+
+    def fetch_raw(self, cal: Calendar) -> list[str]:
+        """Todos los eventos del calendario tal como están en el servidor (series sin expandir)."""
+        query = (
+            '<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
+            "<d:prop><d:getetag/><c:calendar-data/></d:prop>"
+            '<c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"/>'
+            "</c:comp-filter></c:filter></c:calendar-query>"
+        )
+        root = self._request("REPORT", cal.url, query, depth="1")
+        out = []
+        for resp in root.findall("d:response", NS):
+            data = resp.find(".//cal:calendar-data", NS)
+            if data is not None and data.text:
+                out.append(data.text)
+        return out
+
     def _save_following(self, ev: Event) -> None:
         """Cambia esta ocurrencia y las siguientes: acorta la serie y crea otra desde aquí."""
         from ccaccess.recurrence import split_following

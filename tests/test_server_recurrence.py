@@ -1,76 +1,19 @@
 """Prueba las series contra un servidor CalDAV real (Radicale) levantado en localhost.
 
-Se omite si Radicale no está instalado (solo es dependencia de desarrollo).
+El servidor y los calendarios salen de tests/conftest.py. Se omite si Radicale no está instalado.
 """
-import socket
-import subprocess
-import sys
-import time
 from dataclasses import replace
 from datetime import datetime, timedelta
 
 import pytest
-import requests
 
 pytest.importorskip("radicale")
 
-from ccaccess.caldav_client import CalDavClient, DavError, Event  # noqa: E402
+from ccaccess.caldav_client import DavError, Event  # noqa: E402
 from ccaccess.recurrence import RepeatSpec, build_rrule  # noqa: E402
 
 START = datetime(2026, 3, 1).astimezone()
 END = datetime(2026, 5, 1).astimezone()
-
-
-@pytest.fixture(scope="module")
-def server(tmp_path_factory):
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = s.getsockname()[1]
-    folder = tmp_path_factory.mktemp("radicale")
-    proc = subprocess.Popen(
-        [
-            sys.executable, "-m", "radicale",
-            "--hosts", f"127.0.0.1:{port}",
-            "--auth-type", "none",
-            "--storage-filesystem-folder", str(folder),
-            "--logging-level", "error",
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    url = f"http://127.0.0.1:{port}"
-    try:
-        for _ in range(100):
-            try:
-                requests.get(url, timeout=0.5)
-                break
-            except requests.RequestException:
-                time.sleep(0.1)
-        else:
-            pytest.fail("Radicale no arrancó")
-        yield url
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-
-
-@pytest.fixture
-def cal(server, request):
-    """Un calendario vacío y propio de cada test."""
-    name = "t" + str(abs(hash(request.node.name)))
-    body = (
-        '<c:mkcalendar xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:d="DAV:"><d:set><d:prop>'
-        f"<d:displayname>{name}</d:displayname></d:prop></d:set></c:mkcalendar>"
-    )
-    r = requests.request("MKCALENDAR", f"{server}/ana/{name}/", data=body, auth=("ana", "x"))
-    assert r.status_code in (200, 201), r.text
-    client = CalDavClient(f"{server}/ana/", "ana", "x")
-    cals = [c for c in client.discover_calendars() if c.name == name]
-    assert cals, "el cliente no encuentra el calendario recién creado"
-    return client, cals[0]
 
 
 def events(client, calendar):

@@ -12,6 +12,8 @@ La idea vino porque uso [DAVx⁵](https://www.davx5.com/) en Android y necesitab
 - **Contactos:** lista con búsqueda, detalles completos, crear, editar y eliminar. El editor, en tres pestañas, cubre nombre (prefijo, nombre de pila, segundo nombre, apellidos, sufijo, apodo), organización, cargo, función, teléfonos, correos, direcciones, webs, mensajería, cumpleaños, aniversario, categorías y nota. Los campos repetibles se escriben uno por línea, con tipo opcional: `móvil: 600 000 000`, `trabajo: ana@empresa.com`, `casa: Calle 1; Madrid; Madrid; 28001; España`. Lo que la app no muestra (foto, campos personalizados) se conserva al guardar.
 - **Calendario:** agenda agrupada por día (7, 30 o 90 días), con recurrencias expandidas. Crear, editar y eliminar eventos, de hora o de todo el día.
 - **Repeticiones:** los eventos pueden repetirse cada día, semana (con los días que quieras, por ejemplo `L X`), mes o año, cada cierto intervalo y hasta una fecha o un número de veces. Al editar o eliminar un evento que se repite, la app pregunta si afecta a **solo ese evento**, a **ese y los siguientes** o a **toda la serie**. Mover la fecha u hora de la serie entera la desplaza completa. Las excepciones (una ocurrencia cambiada o borrada) se guardan como las entienden otros clientes de calendario. Las reglas más complejas (por ejemplo «el primer lunes de cada mes») se muestran, se respetan y se conservan, pero no se editan.
+- **Buscar y moverte por la agenda:** el campo **Buscar evento** filtra por título, lugar y descripción sin distinguir mayúsculas ni tildes (`jose` encuentra `José`), dentro del periodo mostrado. **Ir a la fecha** (`dd/mm/aaaa`) lleva la agenda a otro día, pasado o futuro, y **Hoy** vuelve al día actual. La búsqueda de contactos también ignora las tildes.
+- **Importar y exportar:** en **Archivo > Importar** y **Archivo > Exportar** (según la pestaña activa). Contactos en `.vcf`: un solo contacto o toda la libreta, y al importar se omiten los que ya existen en la libreta (mismo identificador) y se conservan todos sus campos. Eventos en `.ics`: un evento con toda su serie y sus excepciones, o todos los de un calendario; al importar, los que ya existen se omiten. Sirve para copias de seguridad y para pasar datos de una cuenta a otra. Se leen archivos en UTF-8 y en Windows-1252.
 - **Avisos:** cada evento puede llevar un aviso (en el momento, 5, 10, 15 o 30 minutos, 1 o 2 horas, 1 o 2 días, o 1 semana antes). Mientras CCAccess está abierto suena un sonido corto y aparece un diálogo con **Posponer** (5 minutos, 15 minutos, 1 hora o hasta que empiece), **Descartar** y **Ver en la agenda**. Con Esc se pospone 5 minutos. Se vigilan los eventos de los próximos 14 días y se pueden desactivar en **Archivo > Avisos de eventos**. Los avisos de otros clientes del servidor se respetan y no se pierden al editar.
 - Detección de cambios en el servidor: si alguien modificó el elemento mientras lo editabas, la app no sobrescribe y te avisa.
 - Opción **Archivo > Borrar datos guardados** para quitar del equipo la URL, el usuario y la contraseña.
@@ -36,6 +38,9 @@ La idea vino porque uso [DAVx⁵](https://www.davx5.com/) en Android y necesitab
 | `Supr` | Eliminar (pide confirmación) |
 | `Ctrl+F` | Ir a la búsqueda de contactos |
 | `Ctrl+L` | Ir a la lista de contactos |
+| `Ctrl+Shift+F` | Ir a la búsqueda de eventos |
+| `Ctrl+G` | Ir a la fecha del calendario |
+| `Ctrl+Shift+I` / `Ctrl+Shift+E` | Importar / exportar (contactos o eventos según la pestaña) |
 | `F5` | Actualizar |
 | `F1` | Ver este manual (menú Ayuda) |
 | `Ctrl+Shift+A` | Configurar la cuenta |
@@ -106,8 +111,9 @@ GitHub Actions ejecuta los tests, construye el `.exe`, lo prueba con `--selftest
 
 - Solo se ha probado el ejecutable en Windows y con NVDA. Sin probar con JAWS, Narrator, Orca ni VoiceOver.
 - Las repeticiones se editan con reglas sencillas (día, semana, mes, año). Las reglas avanzadas se conservan sin poder cambiarse. Al cambiar «este y los siguientes» no se trasladan a la serie nueva las excepciones posteriores.
-- No hay tareas ni invitados.
+- No hay tareas ni invitados. Al importar un `.ics`, las tareas se ignoran. La búsqueda de eventos solo mira el periodo mostrado.
 - Los avisos solo suenan con CCAccess abierto, y solo se edita un aviso por evento (el primero que cuente desde el inicio); los demás se conservan tal cual. Los pospuestos o descartados se olvidan al cerrar la aplicación.
+- Al importar, los repetidos se detectan porque el servidor rechaza un identificador que ya existe (Radicale lo hace). Si tu servidor lo aceptara, importar dos veces el mismo archivo podría duplicar elementos.
 - Sin caché: hace falta conexión para ver cualquier dato.
 
 ## Licencia

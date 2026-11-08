@@ -3,6 +3,7 @@ from PySide6.QtGui import QAction, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QFileDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -22,7 +23,15 @@ from ccaccess.carddav import AddressBook, CardDavClient, Contact, DavError, desc
 from ccaccess.ui.calendar_tab import CalendarTab
 from ccaccess.ui.account_dialog import AccountDialog
 from ccaccess.ui.contact_dialog import ContactDialog
-from ccaccess.ui.dialogs import EnterButton, confirm, make_readonly_navigable
+from ccaccess import exchange
+from ccaccess.textutil import fold
+from ccaccess.ui.dialogs import (
+    EnterButton,
+    ask_choice,
+    confirm,
+    make_readonly_navigable,
+    report_import,
+)
 from ccaccess.ui.account_store import Account, clear_account, load_account, save_account
 from ccaccess.ui.announce import announce
 from ccaccess.ui.manual_dialog import ManualDialog
@@ -143,7 +152,15 @@ class MainWindow(QMainWindow):
         self.act_reminders.setChecked(bool(QSettings("CCAccess", "CCAccess").value("reminders/enabled", True, type=bool)))
         self.calendar_tab.reminders_enabled = self.act_reminders.isChecked()
         self.act_reminders.toggled.connect(self._toggle_reminders)
+        imp = QAction("&Importar…", self)
+        imp.setShortcut(QKeySequence("Ctrl+Shift+I"))
+        imp.triggered.connect(self.import_items)
+        exp = QAction("E&xportar…", self)
+        exp.setShortcut(QKeySequence("Ctrl+Shift+E"))
+        exp.triggered.connect(self.export_items)
         m.addActions([acc, ref, wipe, self.act_reminders])
+        m.addSeparator()
+        m.addActions([imp, exp])
         m.addSeparator()
         m.addAction(quit_)
 
@@ -171,7 +188,13 @@ class MainWindow(QMainWindow):
         t2 = QAction("Pestaña de c&alendario", self)
         t2.setShortcut(QKeySequence("Ctrl+2"))
         t2.triggered.connect(lambda: self.tabs.setCurrentIndex(1))
-        s.addActions([f, lst, t1, t2])
+        fe = QAction("Buscar e&vento", self)
+        fe.setShortcut(QKeySequence("Ctrl+Shift+F"))
+        fe.triggered.connect(lambda: self._focus_calendar(self.calendar_tab.search))
+        gd = QAction("Ir a &fecha del calendario", self)
+        gd.setShortcut(QKeySequence("Ctrl+G"))
+        gd.triggered.connect(lambda: self._focus_calendar(self.calendar_tab.goto_date))
+        s.addActions([f, lst, fe, gd, t1, t2])
 
         h = self.menuBar().addMenu("A&yuda")
         upd = QAction("&Buscar actualizaciones…", self)
@@ -184,6 +207,10 @@ class MainWindow(QMainWindow):
         manual.setShortcut(QKeySequence("F1"))
         manual.triggered.connect(lambda: ManualDialog(self).exec())
         h.addActions([manual, upd, about])
+
+    def _focus_calendar(self, widget) -> None:
+        self.tabs.setCurrentIndex(1)
+        widget.setFocus()
 
     def _toggle_reminders(self, on: bool) -> None:
         QSettings("CCAccess", "CCAccess").setValue("reminders/enabled", on)
@@ -418,6 +445,77 @@ class MainWindow(QMainWindow):
         if confirm(self, "Eliminar contacto", f"¿Eliminar a {current.name} del servidor? No se puede deshacer.", "&Eliminar"):
             self._write_contact(lambda: client.delete_contact(current), f"Contacto {current.name} eliminado.")
 
+    # --- importar y exportar -----------------------------------------------
+    def import_items(self) -> None:
+        (self.import_contacts if self.tabs.currentIndex() == 0 else self.calendar_tab.import_events)()
+
+    def export_items(self) -> None:
+        (self.export_contacts if self.tabs.currentIndex() == 0 else self.calendar_tab.export_events)()
+
+    def import_contacts(self) -> None:
+        client, book = self.client, self.book_combo.currentData()
+        if client is None or not book:
+            QMessageBox.information(self, "CCAccess", "Conecta primero con una libreta de direcciones.")
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Importar contactos", "", "Contactos vCard (*.vcf);;Todos los archivos (*)"
+        )
+        if not path:
+            return
+        try:
+            items, bad = exchange.split_vcards(exchange.read_text(path))
+        except OSError as e:
+            QMessageBox.warning(self, "CCAccess", f"No se pudo leer el archivo: {e}")
+            return
+        if not items:
+            QMessageBox.warning(self, "CCAccess", "No se encontró ningún contacto válido en el archivo.")
+            return
+        if not confirm(
+            self,
+            "Importar contactos",
+            f"Se van a añadir {len(items)} contactos a la libreta {self.book_combo.currentText()}. "
+            "Los que ya existan se omitirán. ¿Continuar?",
+            "&Importar",
+        ):
+            return
+        self.say(f"Importando {len(items)} contactos…")
+
+        def done(result) -> None:
+            report_import(self, self.say, result, "contacto", "contactos")
+            self._load_contacts()
+
+        self._run(lambda: exchange.import_contacts(client, book, items, bad), done)
+
+    def export_contacts(self) -> None:
+        if not self.contacts:
+            self.say("No hay contactos que exportar.")
+            return
+        item = self.list.currentItem()
+        current = item.data(CONTACT_ROLE) if item else None
+        contacts = self.contacts
+        if current is not None:
+            choice = ask_choice(
+                self,
+                "Exportar contactos",
+                "¿Qué quieres exportar?",
+                [("&Contacto seleccionado", "one"), ("&Toda la libreta", "all")],
+            )
+            if choice is None:
+                return
+            if choice == "one":
+                contacts = [current]
+        stem = exchange.file_stem(current.name, "contacto") if len(contacts) == 1 else "contactos"
+        path, _ = QFileDialog.getSaveFileName(self, "Exportar contactos", f"{stem}.vcf", "Contactos vCard (*.vcf)")
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                f.write(exchange.join_vcards([c.raw for c in contacts if c.raw]))
+        except OSError as e:
+            QMessageBox.warning(self, "CCAccess", f"No se pudo guardar el archivo: {e}")
+            return
+        self.say(f"{len(contacts)} contacto{'s' if len(contacts) != 1 else ''} exportado{'s' if len(contacts) != 1 else ''} a {path}.")
+
     # --- contactos --------------------------------------------------------
     def _load_contacts(self) -> None:
         client = self.client
@@ -435,10 +533,10 @@ class MainWindow(QMainWindow):
             self.list.setFocus()
 
     def _refresh_list(self) -> None:
-        q = self.search.text().strip().casefold()
+        q = fold(self.search.text().strip())
         self.list.clear()
         for c in self.contacts:
-            hay = " ".join([c.name, c.org, *c.emails, *c.phones]).casefold()
+            hay = fold(" ".join([c.name, c.org, *c.emails, *c.phones]))
             if q in hay:
                 item = QListWidgetItem(c.name)
                 item.setData(CONTACT_ROLE, c)

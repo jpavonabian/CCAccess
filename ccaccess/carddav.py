@@ -21,6 +21,10 @@ class DavError(Exception):
     """Error de comunicación o de protocolo con el servidor."""
 
 
+class DavConflict(DavError):
+    """El elemento cambió en el servidor o ya existe (409/412)."""
+
+
 @dataclass
 class Contact:
     href: str
@@ -162,7 +166,7 @@ class CardDavClient:
         if r.status_code == 401:
             raise DavError("Usuario o contraseña incorrectos.")
         if r.status_code in (409, 412):
-            raise DavError(
+            raise DavConflict(
                 "El elemento cambió en el servidor o ya existe. "
                 "Actualiza la lista (F5) y vuelve a intentarlo."
             )
@@ -304,6 +308,13 @@ class CardDavClient:
             uid = str(uuid.uuid4())
             url = urljoin(book_url if book_url.endswith("/") else book_url + "/", f"{uid}.vcf")
             self._put(url, build_vcard(contact, uid), "text/vcard", new=True)
+
+    def import_contact(self, book_url: str, uid: str, vcard: str) -> None:
+        """Crea un contacto ya escrito (importación). Falla con DavConflict si ese UID ya existe."""
+        from ccaccess.exchange import safe_name
+
+        base = book_url if book_url.endswith("/") else book_url + "/"
+        self._put(urljoin(base, safe_name(uid, ".vcf")), vcard, "text/vcard", new=True)
 
     def delete_contact(self, contact: Contact) -> None:
         self._delete(contact.href, contact.etag)

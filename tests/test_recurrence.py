@@ -2,6 +2,7 @@ from dataclasses import replace
 from datetime import date, datetime, timedelta
 
 import pytest
+from zoneinfo import ZoneInfo
 
 from ccaccess.caldav_client import build_ics, parse_events
 from ccaccess.recurrence import (
@@ -22,6 +23,12 @@ from ccaccess.recurrence import (
 START = datetime(2026, 3, 1)
 END = datetime(2026, 5, 1)
 T0 = datetime(2026, 3, 2, 9)  # lunes
+MAD = ZoneInfo("Europe/Madrid")
+
+
+def mad(dt: datetime) -> datetime:
+    """Hora de pared en Madrid de una hora local de la máquina (los TZID se muestran en la zona local)."""
+    return dt.astimezone(MAD).replace(tzinfo=None)
 
 TZ_ICS = """BEGIN:VCALENDAR
 VERSION:2.0
@@ -141,9 +148,9 @@ def test_series_move_shifts_all_and_byday():
     moved = replace(ev, start=ev.start + timedelta(days=1, hours=2), end=ev.end + timedelta(days=1, hours=2))
     out = edit_series(ev.raw, moved, ev.uid)
     got = [d for d, _ in starts(out)]
-    assert got[0] == datetime(2026, 3, 3, 11)
-    assert [d.weekday() for d in got] == [1, 3, 1, 3, 1, 3]  # martes y jueves
-    assert all(d.hour == 11 for d in got)
+    assert got[0] == ev.start + timedelta(days=1, hours=2)
+    assert [mad(d).weekday() for d in got] == [1, 3, 1, 3, 1, 3]  # martes y jueves
+    assert all(mad(d).hour == 11 for d in got)
     assert "BYDAY=TU,TH" in out and "COUNT=6" in out
     assert "TZID=Europe/Madrid" in out  # la zona de la serie se mantiene
 
@@ -196,8 +203,8 @@ def test_edit_one_occurrence():
     out = edit_occurrence(ev.raw, new, ev.uid)
     got = load(out)
     assert [e.summary for e in got] == ["Serie", "Serie", "Solo hoy", "Serie", "Serie", "Serie"]
-    assert got[2].start == datetime(2026, 3, 9, 16) and got[2].is_exception
-    assert got[0].start == datetime(2026, 3, 2, 9) and not got[0].is_exception
+    assert got[2].start == ev.start.replace(hour=16) and got[2].is_exception
+    assert got[0].start == evs[0].start and not got[0].is_exception
     assert out.count("BEGIN:VEVENT") == 2 and "RECURRENCE-ID" in out
     assert "TRIGGER:-PT10M" in out  # la excepción hereda el aviso
     again = edit_occurrence(out, replace(got[2], scope="this", summary="Otra vez"), ev.uid)
@@ -207,10 +214,10 @@ def test_edit_one_occurrence():
 
 def test_edit_existing_exception_keeps_its_time():
     ev = [e for e in load(EXC_ICS) if e.is_exception][0]
-    assert ev.start == datetime(2026, 3, 9, 14)
+    assert mad(ev.start) == datetime(2026, 3, 9, 14)
     out = edit_occurrence(ev.raw, replace(ev, scope="this", location="Otra sala"), ev.uid)
     got = [e for e in load(out) if e.is_exception][0]
-    assert got.start == datetime(2026, 3, 9, 14) and got.location == "Otra sala"
+    assert got.start == ev.start and got.location == "Otra sala"
 
 
 def test_floating_and_all_day_occurrence():
@@ -233,7 +240,7 @@ def test_delete_occurrence():
     ev = load(TZ_ICS)[2]
     out = delete_occurrence(ev.raw, ev, ev.uid)
     got = [d for d, _ in starts(out)]
-    assert len(got) == 5 and datetime(2026, 3, 9, 9) not in got and "EXDATE" in out
+    assert len(got) == 5 and ev.start not in got and "EXDATE" in out
     # borrar una excepción quita su VEVENT y deja el hueco
     exc = [e for e in load(EXC_ICS) if e.is_exception][0]
     out = delete_occurrence(exc.raw, exc, exc.uid)
@@ -275,7 +282,7 @@ def test_split_following_adjusts_count():
     assert [d.date() for d, _ in starts(short)] == [date(2026, 3, 2), date(2026, 3, 4), date(2026, 3, 9)]
     got = load(new)
     assert [e.summary for e in got] == ["Nueva"] * 3 and got[0].uid == "n1"
-    assert got[0].start == datetime(2026, 3, 11, 9)
+    assert mad(got[0].start) == datetime(2026, 3, 11, 9)
 
 
 def test_split_following_moved_and_new_rule():
@@ -285,7 +292,7 @@ def test_split_following_moved_and_new_rule():
     short, new = split_following(ev.raw, moved, ev.uid, "n2")
     got = load(new)
     assert [e.start for e in got] == [datetime(2026, 3, 11, 18), datetime(2026, 3, 12, 18)]
-    assert load(short)[-1].start == datetime(2026, 3, 9, 9)
+    assert mad(load(short)[-1].start) == datetime(2026, 3, 9, 9)
     assert split_following(ev.raw, replace(load(TZ_ICS)[0], scope="following"), ev.uid, "n3") is None
 
 

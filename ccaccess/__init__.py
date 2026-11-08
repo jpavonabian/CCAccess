@@ -1,3 +1,3 @@
 """CCAccess: contactos y calendario CardDAV/CalDAV accesibles."""
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"

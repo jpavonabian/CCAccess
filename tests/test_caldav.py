@@ -123,3 +123,63 @@ def test_edit_recurring_keeps_rrule_and_times():
     got = [e for e in parse_events(out, START, END) if e.uid == "weekly"]
     assert [e.summary for e in got] == ["Pilates"] * 3
     assert "RRULE" in out and "SEQUENCE:1" in out
+
+
+ALARM_ICS = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//test//EN
+BEGIN:VEVENT
+UID:a1
+DTSTART:20260310T100000Z
+DTEND:20260310T110000Z
+SUMMARY:Con avisos
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:x
+TRIGGER:-PT15M
+END:VALARM
+BEGIN:VALARM
+ACTION:AUDIO
+TRIGGER;RELATED=END:-PT5M
+END:VALARM
+END:VEVENT
+END:VCALENDAR
+"""
+
+
+def test_alarm_parse_and_labels():
+    from ccaccess.caldav_client import alarm_label
+
+    ev = parse_events(ALARM_ICS, datetime(2026, 3, 1), datetime(2026, 4, 1))[0]
+    assert ev.alarm == 15
+    assert [alarm_label(m) for m in (None, 0, 1, 15, 60, 120, 1440, 2880, 90, 10080)] == [
+        "Sin aviso", "En el momento del evento", "1 minuto antes", "15 minutos antes",
+        "1 hora antes", "2 horas antes", "1 día antes", "2 días antes", "90 minutos antes",
+        "1 semana antes",
+    ]
+
+
+def test_alarm_edit_keeps_other_alarms():
+    from dataclasses import replace
+
+    from ccaccess.caldav_client import build_ics
+
+    ev = parse_events(ALARM_ICS, datetime(2026, 3, 1), datetime(2026, 4, 1))[0]
+    out = build_ics(replace(ev, alarm=60), "a1")
+    assert "TRIGGER:-PT1H" in out and "-PT15M" not in out
+    assert "ACTION:AUDIO" in out  # el aviso relativo al fin no se toca
+    out = build_ics(replace(ev, alarm=None), "a1")
+    assert "-PT15M" not in out and "ACTION:AUDIO" in out
+    again = parse_events(out, datetime(2026, 3, 1), datetime(2026, 4, 1))[0]
+    assert again.alarm is None
+    assert build_ics(ev, "a1").count("BEGIN:VALARM") == 2  # sin cambios, sin tocar
+
+
+def test_alarm_new_event():
+    from ccaccess.caldav_client import Event, build_ics
+
+    ev = Event("", "Nuevo", datetime(2026, 3, 10, 9), datetime(2026, 3, 10, 10), False, alarm=30)
+    ics = build_ics(ev, "n1")
+    assert "TRIGGER:-PT30M" in ics
+    assert parse_events(ics, datetime(2026, 3, 1), datetime(2026, 4, 1))[0].alarm == 30
+    assert "VALARM" not in build_ics(Event("", "Sin", ev.start, ev.end, False), "n2")

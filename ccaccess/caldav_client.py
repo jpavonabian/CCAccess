@@ -35,6 +35,7 @@ class Event:
     etag: str = ""
     raw: str = ""  # iCalendar original, para conservar lo que la app no edita
     recurring: bool = False
+    alarm: int | None = None  # minutos antes del inicio del primer aviso; None = sin aviso
 
 
 # Proveedores cuyo servidor de calendarios está en otro host que el de contactos.
@@ -50,6 +51,41 @@ def caldav_url_from(url: str) -> str:
     if "/carddav" in url:
         return url.replace("/carddav", "/caldav", 1)
     return url
+
+
+def alarm_label(minutes: int | None) -> str:
+    """Texto hablado de un aviso, p. ej. «15 minutos antes»."""
+    if minutes is None:
+        return "Sin aviso"
+    if minutes == 0:
+        return "En el momento del evento"
+    for unit, size in (("semana", 10080), ("día", 1440), ("hora", 60), ("minuto", 1)):
+        if minutes % size == 0:
+            n = minutes // size
+            plural = {"semana": "semanas", "día": "días", "hora": "horas", "minuto": "minutos"}[unit]
+            return f"{n} {unit if n == 1 else plural} antes"
+    return f"{minutes} minutos antes"
+
+
+def _start_alarm(vevent):
+    """Primer VALARM con disparo relativo al inicio y anterior (o igual) a él, o None."""
+    for sub in vevent.subcomponents:
+        if sub.name != "VALARM":
+            continue
+        trig = sub.get("TRIGGER")
+        if trig is None or not isinstance(trig.dt, timedelta) or trig.dt > timedelta(0):
+            continue
+        if str(trig.params.get("RELATED", "START")).upper() == "END":
+            continue
+        return sub
+    return None
+
+
+def _alarm_minutes(vevent) -> int | None:
+    sub = _start_alarm(vevent)
+    if sub is None:
+        return None
+    return int(-sub.get("TRIGGER").dt.total_seconds() // 60)
 
 
 def _to_local(value) -> tuple[datetime, bool]:
@@ -102,6 +138,7 @@ def parse_events(
                 etag=etag,
                 raw=ics,
                 recurring=str(comp.get("UID", "")) in recurring_uids,
+                alarm=_alarm_minutes(comp),
             )
         )
     out.sort(key=lambda ev: (ev.start, ev.summary.casefold()))
@@ -198,6 +235,26 @@ class CalDavClient(CardDavClient):
         self._delete(ev.href, ev.etag)
 
 
+def _set_start_alarm(vevent, ev: Event) -> None:
+    """Pone, cambia o quita el aviso relativo al inicio; no toca el resto de VALARM."""
+    current = _start_alarm(vevent)
+    if _alarm_minutes(vevent) == ev.alarm:
+        return
+    if ev.alarm is None:
+        vevent.subcomponents.remove(current)
+        return
+    trigger = -timedelta(minutes=ev.alarm)
+    if current is not None:
+        current.pop("TRIGGER", None)
+        current.add("TRIGGER", trigger)
+        return
+    alarm = icalendar.Alarm()
+    alarm.add("ACTION", "DISPLAY")
+    alarm.add("DESCRIPTION", ev.summary)
+    alarm.add("TRIGGER", trigger)
+    vevent.add_component(alarm)
+
+
 def build_ics(ev: Event, uid: str) -> str:
     """Genera el iCalendar de `ev`. Si tiene `raw`, parte de él y conserva el resto de campos."""
     now = datetime.now(timezone.utc)
@@ -222,6 +279,7 @@ def build_ics(ev: Event, uid: str) -> str:
         cal.add_component(vevent)
     vevent.add("DTSTAMP", now)
     vevent.add("SUMMARY", ev.summary)
+    _set_start_alarm(vevent, ev)
     if ev.location:
         vevent.add("LOCATION", ev.location)
     if ev.description:
@@ -238,4 +296,4 @@ def build_ics(ev: Event, uid: str) -> str:
     return cal.to_ical().decode("utf-8")
 
 
-__all__ = ["Calendar", "Event", "CalDavClient", "DavError", "parse_events", "caldav_url_from", "build_ics"]
+__all__ = ["Calendar", "Event", "CalDavClient", "DavError", "parse_events", "caldav_url_from", "build_ics", "alarm_label"]

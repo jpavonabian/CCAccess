@@ -1,6 +1,6 @@
 from datetime import datetime, time, timedelta
 
-from PySide6.QtCore import QLocale
+from PySide6.QtCore import QLocale, QTimer
 from ccaccess.ui.dialogs import EnterButton, make_readonly_navigable
 from PySide6.QtWidgets import (
     QComboBox,
@@ -15,12 +15,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ccaccess.caldav_client import CalDavClient, Calendar, Event
+from ccaccess.caldav_client import CalDavClient, Calendar, Event, alarm_label
 from ccaccess.ui.announce import announce
 from ccaccess.ui.dialogs import confirm
+from ccaccess.reminders import ReminderTracker
 from ccaccess.ui.event_dialog import EventDialog
+from ccaccess.ui.reminder_dialog import DISMISS, SHOW, ask_reminder
 
 EVENT_ROLE = 256  # Qt.UserRole
+REMINDER_DAYS = 14  # cuántos días por delante se vigilan los avisos
 RANGES = [("Próximos 7 días", 7), ("Próximos 30 días", 30), ("Próximos 90 días", 90)]
 
 
@@ -37,10 +40,22 @@ def event_line(ev: Event) -> str:
 class CalendarTab(QWidget):
     """Vista de agenda: eventos agrupados por día. `run(fn, on_done)` ejecuta en segundo plano."""
 
-    def __init__(self, run, say):
+    def __init__(self, run, say, run_silent=None):
         super().__init__()
         self._run = run
+        self._run_silent = run_silent or run
         self._say = say
+        self.reminders_enabled = True
+        self._tracker = ReminderTracker()
+        self._alarm_events: list[Event] = []
+        self._showing_reminder = False
+        # Los avisos se vigilan aparte de la agenda visible, para no mover la selección.
+        self._check_timer = QTimer(self)
+        self._check_timer.timeout.connect(self._check_reminders)
+        self._check_timer.start(30_000)
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.timeout.connect(self.refresh_reminders)
+        self._refresh_timer.start(10 * 60_000)
         self.client: CalDavClient | None = None
         self.calendars: list[Calendar] = []
         self.events: list[Event] = []
@@ -115,6 +130,74 @@ class CalendarTab(QWidget):
             self.cal_combo.addItem(c.name, c.url)
         self.cal_combo.blockSignals(False)
         self.reload()
+        self.refresh_reminders()
+
+    # --- avisos -----------------------------------------------------------
+    def reset_reminders(self) -> None:
+        self._alarm_events = []
+        self._tracker = ReminderTracker()
+
+    def refresh_reminders(self) -> None:
+        """Descarga en segundo plano los eventos de los próximos días para vigilar sus avisos."""
+        client, cals = self.client, list(self.calendars)
+        if client is None or not cals or not self.reminders_enabled:
+            return
+        start = datetime.combine(datetime.now().date(), time.min).astimezone()
+        end = start + timedelta(days=REMINDER_DAYS)
+
+        def work() -> list[Event]:
+            events: list[Event] = []
+            for c in cals:
+                events += client.fetch_events(c, start, end)
+            return events
+
+        def done(events: list[Event]) -> None:
+            self._alarm_events = events
+            self._check_reminders()
+
+        self._run_silent(work, done)
+
+    def _check_reminders(self) -> None:
+        # exec() del aviso deja correr el temporizador: sin esto saldrían avisos apilados.
+        if self._showing_reminder or not self.reminders_enabled:
+            return
+        self._showing_reminder = True
+        try:
+            while True:
+                now = datetime.now()
+                due = self._tracker.due(self._alarm_events, now)
+                if not due:
+                    break
+                ev = due[0]
+                action, minutes = ask_reminder(self.window(), ev, now)
+                if action == DISMISS:
+                    self._tracker.dismiss(ev)
+                elif action == SHOW:
+                    self._tracker.dismiss(ev)
+                    self._show_event(ev)
+                else:
+                    self._tracker.snooze(ev, minutes, datetime.now())
+        finally:
+            self._showing_reminder = False
+
+    def _show_event(self, ev: Event) -> None:
+        """Lleva el foco a ese evento en la agenda, si está en el periodo que se muestra."""
+        tabs = self.parentWidget()
+        while tabs is not None and not hasattr(tabs, "setCurrentWidget"):
+            tabs = tabs.parentWidget()
+        if tabs is not None:
+            tabs.setCurrentWidget(self)
+        self.cal_combo.setCurrentIndex(0)  # «Todos los calendarios», para que no quede filtrado
+        for i in range(self.tree.topLevelItemCount()):
+            day = self.tree.topLevelItem(i)
+            for j in range(day.childCount()):
+                child = day.child(j)
+                cur = child.data(0, EVENT_ROLE)
+                if isinstance(cur, Event) and cur.uid == ev.uid and cur.start == ev.start:
+                    self.tree.setCurrentItem(child)
+                    self.tree.setFocus()
+                    return
+        self._say("El evento no está en el periodo mostrado. Amplía el periodo para verlo.")
 
     def reload(self) -> None:
         client = self.client
@@ -181,6 +264,8 @@ class CalendarTab(QWidget):
             lines.append(f"Fin: {day_title(ev.end)}, {ev.end:%H:%M}")
         if ev.location:
             lines.append(f"Lugar: {ev.location}")
+        if ev.alarm is not None:
+            lines.append(f"Aviso: {alarm_label(ev.alarm)}")
         if ev.calendar:
             lines.append(f"Calendario: {ev.calendar}")
         if ev.description:
@@ -200,6 +285,7 @@ class CalendarTab(QWidget):
         def finished(_result) -> None:
             self._say(done_msg)
             self.reload()
+            self.refresh_reminders()
 
         self._say("Guardando…")
         self._run(fn, finished)

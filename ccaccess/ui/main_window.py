@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, QThread, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QSettings, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QAction, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
@@ -109,7 +109,7 @@ class MainWindow(QMainWindow):
         split.addWidget(left)
         split.addWidget(right)
         split.setStretchFactor(1, 1)
-        self.calendar_tab = CalendarTab(self._run, self.say)
+        self.calendar_tab = CalendarTab(self._run, self.say, self._run_silent)
         self.tabs = QTabWidget()
         self.tabs.addTab(split, "&Contactos")
         self.tabs.addTab(self.calendar_tab, "C&alendario")
@@ -138,7 +138,12 @@ class MainWindow(QMainWindow):
         quit_ = QAction("&Salir", self)
         quit_.setShortcut(QKeySequence.StandardKey.Quit)
         quit_.triggered.connect(self.close)
-        m.addActions([acc, ref, wipe])
+        self.act_reminders = QAction("Avisos de &eventos", self)
+        self.act_reminders.setCheckable(True)
+        self.act_reminders.setChecked(bool(QSettings("CCAccess", "CCAccess").value("reminders/enabled", True, type=bool)))
+        self.calendar_tab.reminders_enabled = self.act_reminders.isChecked()
+        self.act_reminders.toggled.connect(self._toggle_reminders)
+        m.addActions([acc, ref, wipe, self.act_reminders])
         m.addSeparator()
         m.addAction(quit_)
 
@@ -179,6 +184,13 @@ class MainWindow(QMainWindow):
         manual.setShortcut(QKeySequence("F1"))
         manual.triggered.connect(lambda: ManualDialog(self).exec())
         h.addActions([manual, upd, about])
+
+    def _toggle_reminders(self, on: bool) -> None:
+        QSettings("CCAccess", "CCAccess").setValue("reminders/enabled", on)
+        self.calendar_tab.reminders_enabled = on
+        if on:
+            self.calendar_tab.refresh_reminders()
+        self.say("Avisos de eventos activados." if on else "Avisos de eventos desactivados.")
 
     # --- estado -----------------------------------------------------------
     def say(self, text: str) -> None:
@@ -302,6 +314,7 @@ class MainWindow(QMainWindow):
         self.detail.clear()
         ct = self.calendar_tab
         ct.client, ct.calendars, ct.events = None, [], []
+        ct.reset_reminders()
         ct.cal_combo.clear()
         ct.tree.clear()
         ct.detail.clear()

@@ -14,10 +14,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ccaccess.caldav_client import Calendar, Event
+from ccaccess.caldav_client import Calendar, Event, alarm_label
 
 DATE_FMT = "%d/%m/%Y"
 TIME_FMT = "%H:%M"
+ALARM_PRESETS = [None, 0, 5, 10, 15, 30, 60, 120, 1440, 2880, 10080]
 
 
 class EventDialog(QDialog):
@@ -52,6 +53,14 @@ class EventDialog(QDialog):
         self.end_date = QLineEdit(end_shown.strftime(DATE_FMT))
         self.end_time = QLineEdit(event.end.strftime(TIME_FMT))
         self.location = QLineEdit(event.location)
+        self.alarm = QComboBox()
+        presets = list(ALARM_PRESETS)
+        if event.alarm not in presets:
+            presets.append(event.alarm)  # aviso del servidor que no está en la lista
+            presets.sort(key=lambda m: -1 if m is None else m)
+        for m in presets:
+            self.alarm.addItem(alarm_label(m), m)
+        self.alarm.setCurrentIndex(self.alarm.findData(event.alarm))
         self.description = QPlainTextEdit(event.description)
         self.description.setTabChangesFocus(True)
         for w, name in (
@@ -72,6 +81,7 @@ class EventDialog(QDialog):
             ("Fecha de &fin (dd/mm/aaaa):", self.end_date),
             ("Hora de fi&n (hh:mm):", self.end_time),
             ("&Lugar:", self.location),
+            ("A&viso:", self.alarm),
             ("D&escripción:", self.description),
         ]
         for text, widget in rows:
@@ -125,6 +135,7 @@ class EventDialog(QDialog):
                 summary=self.title.text().strip(),
                 location=self.location.text().strip(),
                 description=self.description.toPlainText().strip(),
+                alarm=self.alarm.currentData(),
             )
         all_day = self.all_day.isChecked()
         try:
@@ -164,6 +175,7 @@ class EventDialog(QDialog):
             location=self.location.text().strip(),
             description=self.description.toPlainText().strip(),
             calendar=cal_name,
+            alarm=self.alarm.currentData(),
         )
 
     def _validate(self) -> None:
